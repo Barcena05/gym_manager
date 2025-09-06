@@ -194,7 +194,7 @@
 							<Form.Label class="font-semibold">{m.language()}</Form.Label>
 
 							<Select.Root type="single" bind:value={$formData.language}>
-								<Select.Trigger {...props}>
+								<Select.Trigger class="w-full" {...props}>
 									{languages.find((l) => l.id === $formData.language)
 										? languages.find((l) => l.id === $formData.language)?.name
 										: m.select_language()}
@@ -246,7 +246,7 @@
 						{#snippet children({ props })}
 							<Form.Label class="font-semibold">{m.theme()}</Form.Label>
 							<Select.Root type="single" bind:value={$formData.theme}>
-								<Select.Trigger {...props}>
+								<Select.Trigger class="w-full" {...props}>
 									{$formData?.theme ? $formData.theme : m.select_theme()}
 								</Select.Trigger>
 								<Select.Content>
@@ -296,7 +296,7 @@
 									$formData.backup_period_hours = value ? parseInt(value) : undefined;
 								}}
 							>
-								<Select.Trigger {...props}>
+								<Select.Trigger class="w-full" {...props}>
 									{$formData?.backup_period_hours
 										? $formData.backup_period_hours + 'h'
 										: m.select_period()}
@@ -390,10 +390,10 @@
 					</div>
 
 					<div class="flex gap-20 justify-around mt-10">
-						<Button variant="outline" onclick={handleCancel} class="w-full"
+						<Button variant="outline" onclick={handleCancel} class="flex-1"
 							>{m['common.cancel']()}</Button
 						>
-						<Form.Button type="submit" class="w-full">{m['common.save']()}</Form.Button>
+						<Form.Button type="submit" class="flex-1">{m['common.save']()}</Form.Button>
 					</div>
 				</div>
 			</form>
