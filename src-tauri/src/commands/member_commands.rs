@@ -251,9 +251,8 @@ pub async fn get_members_with_memberships_paginated(
         pagination_query
     );
 
-    tracing::info!(
-        "Executing query: {} with page_size: {}, offset: {}",
-        query_string,
+    tracing::debug!(
+        "Executing paginated members query with page_size: {}, offset: {}",
         page_size,
         offset
     );
@@ -294,7 +293,7 @@ pub async fn get_member_by_id_with_membership(
 ) -> AppResult<Option<MemberWithMembership>> {
     let member_id = payload.id;
 
-    tracing::info!(
+    tracing::debug!(
         "Fetching member with membership details for member_id: {}",
         member_id
     );
@@ -349,7 +348,7 @@ pub async fn get_member_by_id_with_membership(
 
     match query_result {
         Ok(Some(data)) => {
-            tracing::info!("Successfully fetched member data for ID: {}", member_id);
+            tracing::debug!("Successfully fetched member data for ID: {}", member_id);
             Ok(Some(data))
         }
         Ok(None) => {
@@ -374,7 +373,7 @@ pub async fn get_member_by_id(
 ) -> AppResult<Option<Member>> {
     let member_id = payload.id;
 
-    tracing::info!("Fetching member by ID: {}", member_id);
+    tracing::debug!("Fetching member by ID: {}", member_id);
     let member = sqlx::query_as!(
         Member,
         r#"
@@ -388,7 +387,7 @@ pub async fn get_member_by_id(
     .await?;
 
     if let Some(m) = &member {
-        tracing::info!("Found member: {} {}", m.first_name, m.last_name);
+        tracing::debug!("Found member: {} {}", m.first_name, m.last_name);
     } else {
         tracing::warn!("No member found with ID: {}", member_id);
     }

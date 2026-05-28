@@ -12,7 +12,7 @@ pub async fn get_membership_type_by_id(
     id: i64,
     state: State<'_, AppState>,
 ) -> AppResult<MembershipType> {
-    tracing::info!("Fetching membership type with id: {}", id);
+    tracing::debug!("Fetching membership type with id: {}", id);
 
     let membership_type = sqlx::query_as!(
         MembershipType,
@@ -266,7 +266,7 @@ pub async fn add_membership_type(
 pub async fn get_all_membership_types(
     state: State<'_, AppState>,
 ) -> AppResult<Vec<MembershipType>> {
-    tracing::info!("Fetching all membership types.");
+    tracing::debug!("Fetching all membership types.");
     let types = sqlx::query_as!(
         MembershipType,
         r#"

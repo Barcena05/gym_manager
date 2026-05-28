@@ -34,7 +34,7 @@ pub async fn get_all_memberships_for_member(
     payload: PaginationPayload,
     state: State<'_, AppState>,
 ) -> AppResult<PaginatedResponse<MembershipInfo>> {
-    tracing::info!("Fetching all memberships for member with ID: {}", id);
+    tracing::debug!("Fetching all memberships for member with ID: {}", id);
 
     let current_page = payload.page.unwrap_or(1).max(1);
     let page_size = payload.per_page.unwrap_or(10).max(1);
@@ -109,7 +109,7 @@ pub async fn get_membership_by_id(
     id: i64,
     state: State<'_, AppState>,
 ) -> AppResult<Option<MembershipInfo>> {
-    tracing::info!("Fetching membership by ID: {}", id);
+    tracing::debug!("Fetching membership by ID: {}", id);
 
     let membership = sqlx::query_as!(
         MembershipInfo,
@@ -140,7 +140,7 @@ pub async fn get_membership_by_id(
     .await?;
 
     if let Some(m) = &membership {
-        tracing::info!("Found membership for member ID: {}", m.member_id);
+        tracing::debug!("Found membership for member ID: {}", m.member_id);
     } else {
         tracing::warn!("No membership found with ID: {}", id);
     }

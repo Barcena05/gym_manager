@@ -418,7 +418,7 @@ pub async fn process_scan(
             return result;
         }
         "active" => {
-            tracing::info!("Member {} has an active membership.", member_full_name);
+            tracing::debug!("Member {} has an active membership.", member_full_name);
         }
         _ => {
             let result = deny_entry(
