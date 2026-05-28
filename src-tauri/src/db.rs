@@ -1,6 +1,6 @@
 use crate::error::{AppError, Result};
 use crate::utils;
-use sqlx::{migrate::Migrator, sqlite::SqlitePoolOptions, SqlitePool};
+use sqlx::{migrate::Migrator, sqlite::SqlitePoolOptions, Row as _, SqlitePool};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
@@ -57,6 +57,12 @@ pub async fn init_db(app_handle: &AppHandle) -> Result<SqlitePool> {
         .await
         .map_err(|e| AppError::Config(format!("Failed to enable foreign keys: {}", e)))?;
 
+    // Fix CRLF checksum mismatches before running migrations (Windows→Linux upgrade path)
+    let fixed = fix_migration_checksums(&pool).await?;
+    if fixed > 0 {
+        tracing::info!("Normalized {} migration checksums (CRLF→LF)", fixed);
+    }
+
     // Run migrations
     tracing::info!("Running database migrations...");
     MIGRATOR.run(&pool).await?;
@@ -64,6 +70,69 @@ pub async fn init_db(app_handle: &AppHandle) -> Result<SqlitePool> {
     create_default_admin_user_if_not_exists(&pool).await?;
 
     Ok(pool)
+}
+
+/// Fixes migration checksum mismatches caused by CRLF line endings on Windows.
+///
+/// sqlx (0.7+) stores SHA-384 checksums of migration file content. When the main
+/// branch had no .gitattributes, Windows users checked out migration files with CRLF
+/// endings, so their binaries stored SHA-384(CRLF) in _sqlx_migrations. After
+/// .gitattributes enforced LF, new binaries produce SHA-384(LF) — a different value
+/// for every migration → VersionMismatch on startup.
+///
+/// This replaces any stored CRLF-based SHA-384 (48 bytes, differs from expected)
+/// with the correct LF-based value. Must run before MIGRATOR.run().
+async fn fix_migration_checksums(pool: &SqlitePool) -> Result<usize> {
+    let table_exists: bool = sqlx::query(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='_sqlx_migrations')",
+    )
+    .fetch_one(pool)
+    .await
+    .and_then(|row| row.try_get(0))
+    .unwrap_or(false);
+
+    if !table_exists {
+        return Ok(0);
+    }
+
+    let mut fixed = 0usize;
+
+    for migration in MIGRATOR.migrations.iter() {
+        let row = sqlx::query("SELECT checksum FROM _sqlx_migrations WHERE version = ?")
+            .bind(migration.version)
+            .fetch_optional(pool)
+            .await?;
+
+        if let Some(row) = row {
+            let stored: Vec<u8> = row.try_get("checksum").unwrap_or_default();
+            let expected: &[u8] = &migration.checksum;
+
+            if stored == expected {
+                continue;
+            }
+
+            // SHA-384 is 48 bytes — same algorithm, different content (CRLF vs LF)
+            if stored.len() == expected.len() {
+                sqlx::query("UPDATE _sqlx_migrations SET checksum = ? WHERE version = ?")
+                    .bind(expected)
+                    .bind(migration.version)
+                    .execute(pool)
+                    .await?;
+                fixed += 1;
+                tracing::info!(
+                    "Fixed CRLF→LF SHA-384 checksum for migration v{}",
+                    migration.version
+                );
+            } else {
+                tracing::warn!(
+                    "Migration v{} has an unrecognised checksum mismatch (stored {} bytes, expected {} bytes)",
+                    migration.version, stored.len(), expected.len()
+                );
+            }
+        }
+    }
+
+    Ok(fixed)
 }
 
 pub fn get_database_path(app_handle: &AppHandle) -> Result<PathBuf> {
