@@ -142,7 +142,7 @@ async fn load_last_backup_date(
 
     match check {
         Some(check) => Ok(check.last_check_time),
-        None => Ok(chrono::NaiveDateTime::from_timestamp(0, 0)),
+        None => Ok(chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc()),
     }
 }
 
@@ -209,7 +209,7 @@ pub async fn is_backup_needed(app_state: &tauri::State<'_, AppState>) -> AppResu
     };
     let backup_threshold = last_backup
         .checked_add_signed(chrono::Duration::hours(backup_period))
-        .unwrap_or_else(|| chrono::NaiveDateTime::from_timestamp(0, 0));
+        .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc());
 
     if backup_threshold < today {
         return Ok(true);
