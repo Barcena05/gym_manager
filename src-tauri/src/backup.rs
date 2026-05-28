@@ -67,6 +67,9 @@ async fn perform_backup(app_handle: &tauri::AppHandle) -> AppResult<()> {
 
     tracing::info!("Creating temporary backup file at: {:?}", backup_path);
 
+    // Remove stale temp file so VACUUM INTO doesn't fail on an existing path
+    tokio::fs::remove_file(&backup_path).await.ok();
+
     let conn = app_state.db_pool.acquire().await.map_err(|e| {
         tracing::error!("Failed to acquire database connection: {}", e);
         AppError::Sqlx(e)
@@ -132,7 +135,6 @@ async fn perform_backup(app_handle: &tauri::AppHandle) -> AppResult<()> {
 async fn load_last_backup_date(
     app_state: &tauri::State<'_, AppState>,
 ) -> AppResult<chrono::NaiveDateTime> {
-    println!("✅ ✅✅✅✅backup loading from DB");
     let check = sqlx::query_as!(
           CronCheck,
           "SELECT id as `id!`, last_check_time, check_type, status, created_at, updated_at FROM cron_checks WHERE check_type = 'backup' AND status='success' ORDER BY last_check_time DESC LIMIT 1",
@@ -196,13 +198,7 @@ pub async fn is_backup_needed(app_state: &tauri::State<'_, AppState>) -> AppResu
     }
     let backup_period = app_state.settings.read().await.backup_period_hours;
     let backup_period = match backup_period {
-        Some(period) => {
-            println!(
-                "Backup period is set to {} hours, skipping backup check.",
-                period
-            );
-            period as i64
-        }
+        Some(period) => period as i64,
         None => {
             return Ok(false);
         }
@@ -214,7 +210,6 @@ pub async fn is_backup_needed(app_state: &tauri::State<'_, AppState>) -> AppResu
     if backup_threshold < today {
         return Ok(true);
     } else {
-        println!("Backup check skipped: Last backup was within the configured period.");
         return Ok(false);
     }
 }
@@ -420,7 +415,7 @@ pub async fn restore_from_backup(
             download_url = format!("{}?versionId={}", download_url, vid);
         }
     }
-    println!("Download URL: {}", download_url);
+    tracing::info!("Download URL: {}", download_url);
 
     app_state.db_pool.close().await;
     tracing::info!("Database connection pool closed.");

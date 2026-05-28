@@ -42,7 +42,6 @@ pub fn verify_password(password: &str, hash: &str) -> AppResult<bool> {
 async fn load_last_checked_membership_date(
     app_state: &tauri::State<'_, AppState>,
 ) -> AppResult<chrono::NaiveDateTime> {
-    println!("✅ ✅✅✅✅loading from DB");
     let check = sqlx::query_as!(
           CronCheck,
           "SELECT id as `id!`, last_check_time, check_type, status, created_at, updated_at FROM cron_checks WHERE check_type = 'membership' ORDER BY last_check_time DESC LIMIT 1",
@@ -99,12 +98,12 @@ async fn update_membership_statuses(app_state: &tauri::State<'_, AppState>) -> A
 
     // Log the results
     if total_updated > 0 {
-        println!("📊 Membership Status Update Summary:");
-        println!("   • Pending → Active: {}", pending_to_active_count);
-        println!("   • Active → Expired: {}", active_to_expired_count);
-        println!("   • Total Updated: {}", total_updated);
+        tracing::info!(
+            "Membership status update: pending→active={}, active→expired={}, total={}",
+            pending_to_active_count, active_to_expired_count, total_updated
+        );
     } else {
-        println!("✅ All membership statuses are already current");
+        tracing::debug!("All membership statuses are already current");
     }
 
     Ok(total_updated)
@@ -156,22 +155,22 @@ pub async fn check_membership_statuses(app_state: &tauri::State<'_, AppState>) -
             Ok(count) => {
                 if count > 0 {
                     save_last_checked_membership_date(&app_state, today, "success").await?;
-                    println!("✅ Membership statuses updated successfully.");
+                    tracing::info!("Membership statuses updated successfully.");
                 } else {
                     save_last_checked_membership_date(&app_state, today, "no_changes").await?;
-                    println!("No membership statuses needed updating.");
+                    tracing::debug!("No membership statuses needed updating.");
                 }
             }
             Err(e) => {
                 save_last_checked_membership_date(&app_state, today, "fail").await?;
-                println!("❌ Error updating membership statuses: {}", e);
+                tracing::error!("Error updating membership statuses: {}", e);
                 return Err(AppError::MembershipCheckFailed(
                     "Failed to update membership statuses!".to_string(),
                 ));
             }
         }
     } else {
-        println!("Membership statuses already checked today.");
+        tracing::debug!("Membership statuses already checked today.");
     }
 
     Ok(())

@@ -9,8 +9,6 @@ fn main() {
         .with_env_filter("gym_manager=debug,tauri=info,sqlx=debug")
         .with_writer(std::io::stdout)
         .init();
-    println!("=== Application starting ===");
-
     // Initialize the Tauri application builder
     let builder = tauri::Builder::default().plugin(tauri_plugin_process::init());
 

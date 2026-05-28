@@ -62,8 +62,32 @@ pub async fn load_settings(app_handle: &AppHandle) -> Result<AppSettings> {
         return Ok(default_settings);
     }
     let content = fs::read_to_string(config_path).await?;
-    let settings: AppSettings = serde_json::from_str(&content)
-        .map_err(|e| AppError::Config(format!("Failed to parse settings file: {}", e)))?;
+
+    let settings = match serde_json::from_str::<AppSettings>(&content) {
+        Ok(settings) => settings,
+        Err(_) => {
+            // If parsing fails (e.g. missing fields after an update), merge with defaults
+            tracing::info!("Settings file has missing or unrecognized fields, merging with defaults");
+            let default_settings = AppSettings::default();
+            let default_json = serde_json::to_value(&default_settings)?;
+
+            if let (Ok(mut default_obj), Ok(existing_obj)) = (
+                serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(default_json),
+                serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&content),
+            ) {
+                for (key, value) in existing_obj {
+                    default_obj.insert(key, value);
+                }
+                serde_json::from_value(serde_json::Value::Object(default_obj))
+                    .unwrap_or(default_settings)
+            } else {
+                default_settings
+            }
+        }
+    };
+
+    // Persist any newly-added fields back to disk
+    save_settings(app_handle, &settings).await?;
 
     Ok(settings)
 }
