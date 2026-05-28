@@ -5,7 +5,7 @@ use tauri::Manager;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 fn trim_log_files(log_dir: &std::path::Path, keep: usize) {
-    let Ok(mut entries) = std::fs::read_dir(log_dir) else {
+    let Ok(entries) = std::fs::read_dir(log_dir) else {
         return;
     };
     let mut files: Vec<_> = entries
