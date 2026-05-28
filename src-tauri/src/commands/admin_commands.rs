@@ -320,10 +320,13 @@ pub async fn update_app_settings(
         changed = true;
     }
 
-    if changed {
-        save_settings(&app_handle, &settings).await?;
+    let settings_to_save = if changed { Some(settings.clone()) } else { None };
+    drop(settings); // release write lock before any I/O
+
+    if let Some(s) = settings_to_save {
+        save_settings(&app_handle, &s).await?;
         app_handle
-            .emit("settings_changed", settings.clone())
+            .emit("settings_changed", s)
             .unwrap_or_else(|e| {
                 tracing::warn!("Failed to emit settings_changed event: {}", e);
             });
