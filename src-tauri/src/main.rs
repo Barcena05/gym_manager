@@ -4,6 +4,28 @@ use gym_manager_lib::{backup, commands, config, db, utils, AppState};
 use tauri::Manager;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+fn trim_log_files(log_dir: &std::path::Path, keep: usize) {
+    let Ok(mut entries) = std::fs::read_dir(log_dir) else {
+        return;
+    };
+    let mut files: Vec<_> = entries
+        .flatten()
+        .filter(|e| {
+            e.path()
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map_or(false, |n| n.starts_with("gym_manager.log"))
+        })
+        .collect();
+    if files.len() <= keep {
+        return;
+    }
+    files.sort_by_key(|e| e.file_name());
+    for entry in &files[..files.len() - keep] {
+        std::fs::remove_file(entry.path()).ok();
+    }
+}
+
 fn main() {
     // Log directory: <data_local_dir>/com.gym-manager.dc/logs/
     let log_dir = dirs::data_local_dir()
@@ -11,6 +33,7 @@ fn main() {
         .join("com.gym-manager.dc")
         .join("logs");
     std::fs::create_dir_all(&log_dir).ok();
+    trim_log_files(&log_dir, 7);
 
     let file_appender = tracing_appender::rolling::daily(&log_dir, "gym_manager.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
