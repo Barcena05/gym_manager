@@ -28,7 +28,8 @@
 
 	const languages = [
 		{ id: 'en', name: 'English' },
-		{ id: 'rs', name: 'Srpski' }
+		{ id: 'rs', name: 'Srpski' },
+		{ id: 'es', name: 'Español' }
 	];
 
 	const locale = m.locale_code() || 'bs-BA';
