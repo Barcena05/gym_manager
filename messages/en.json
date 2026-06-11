@@ -379,5 +379,17 @@
 	"running_latest_version": "Your application is running the latest version.",
 	"check_again": "Check Again",
 	"is_active": "Active",
-	"id_must_be_digits": "ID must be digits"
+	"id_must_be_digits": "ID must be digits",
+	"photo": "Photo",
+	"upload_photo": "Upload Photo",
+	"remove_photo": "Remove Photo",
+	"change_photo": "Change Photo",
+	"member_photo": "Member Photo",
+	"no_photo": "No Photo",
+	"only_images_allowed": "Only image files are allowed",
+	"file_too_large": "File size must be less than 5MB",
+	"photo_uploaded": "Photo uploaded successfully",
+	"photo_upload_failed": "Failed to upload photo",
+	"photo_removed": "Photo removed successfully",
+	"photo_remove_failed": "Failed to remove photo"
 }

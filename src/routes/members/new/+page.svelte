@@ -11,6 +11,7 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Form from '$lib/components/ui/form/index.js';
 	import * as Card from '$lib/components/ui/card';
+	import Label from '$lib/components/ui/label/label.svelte';
 	import Input from '$lib/components/ui/input/input.svelte';
 	import { getLocalTimeZone, parseDate, today, type DateValue } from '@internationalized/date';
 	import { setHeader, setLoading } from '$lib/stores/state';
@@ -25,6 +26,47 @@
 	let showMembershipPrompt = false;
 	const locale = m.locale_code() || 'bs-BA';
 
+	// --- Photo handling ---
+	let selectedPhoto: { bytes: Uint8Array; extension: string } | null = null;
+	let photoPreviewUrl: string | null = null;
+
+	function handlePhotoChange(event: Event) {
+		console.log('FILE INPUT TRIGGERED');
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+
+		if (!file.type.startsWith('image/')) {
+			toast.error(m.only_images_allowed());
+			return;
+		}
+		if (file.size > 5 * 1024 * 1024) {
+			toast.error(m.file_too_large());
+			return;
+		}
+
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			const arrayBuffer = e.target?.result as ArrayBuffer;
+			const bytes = new Uint8Array(arrayBuffer);
+			const extension = file.name.split('.').pop() || 'jpg';
+			selectedPhoto = { bytes, extension };
+			photoPreviewUrl = URL.createObjectURL(file);
+		};
+		reader.readAsArrayBuffer(file);
+	}
+
+	function clearPhoto() {
+		selectedPhoto = null;
+		if (photoPreviewUrl) {
+			URL.revokeObjectURL(photoPreviewUrl);
+			photoPreviewUrl = null;
+		}
+		const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+		if (fileInput) fileInput.value = '';
+	}
+	// --- end photo handling ---
+
 	const initialValues: z.infer<NewMemberTypeSchema> = {
 		card_id: '',
 		first_name: '',
@@ -35,7 +77,7 @@
 	};
 
 	const form = superForm(initialValues, {
-		validators: zodClient(newMemberSchema),
+		validators: zodClient(newMemberSchema as any),
 		syncFlashMessage: true,
 		dataType: 'json',
 		SPA: true,
@@ -48,7 +90,6 @@
 
 	const { form: formData, enhance } = form;
 
-
 	function handleDateChange(newValue: DateValue | undefined) {
 		$formData.date_of_birth = newValue ? newValue.toString() : null;
 	}
@@ -59,8 +100,25 @@
 		try {
 			const result = await form.validateForm();
 			if (result.valid) {
+				// 1. Create member
 				const member: Member = await invoke('add_member', { payload: result.data });
 				newMember = member;
+
+				// 2. If photo selected, upload it
+				if (selectedPhoto && member.id) {
+					try {
+						await invoke('save_member_photo', {
+							memberId: member.id,
+							photoBytes: Array.from(selectedPhoto.bytes),
+							extension: selectedPhoto.extension
+						});
+						toast.success(m.photo_uploaded());
+					} catch (photoError) {
+						console.error('Photo upload failed:', photoError);
+						toast.error(m.photo_upload_failed());
+					}
+				}
+
 				showMembershipPrompt = true;
 				toast.success(m.new_member_add_success());
 			} else {
@@ -78,6 +136,7 @@
 			setLoading(false);
 		}
 	}
+
 	async function handleCancel() {
 		await goto('/members');
 	}
@@ -96,12 +155,14 @@
 		}
 		showMembershipPrompt = false;
 	}
+
 	onMount(() => {
 		setHeader({
 			title: m.add_new_member(),
 			showBackButton: true
 		});
 	});
+	let fileInput: HTMLInputElement | null = null;
 </script>
 
 <div class="container mx-auto p-4 md:p-8 max-w-2xl">
@@ -111,6 +172,44 @@
 		</Card.Header>
 		<Card.Content>
 			<form use:enhance method="post" onsubmit={handleSubmit} class="space-y-6">
+				<!-- Photo upload field -->
+				<div class="space-y-2">
+					<Label class="font-semibold">{m.photo()}</Label>
+					<div class="flex items-center gap-4">
+						{#if photoPreviewUrl}
+							<img src={photoPreviewUrl} alt="Preview" class="w-20 h-20 rounded-full object-cover" />
+						{:else}
+							<div class="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
+								<span class="text-muted-foreground text-xs">{m.no_photo()}</span>
+							</div>
+						{/if}
+						<div class="flex gap-2">
+							<input
+								type="file"
+								accept="image/*"
+								class="hidden"
+								onchange={handlePhotoChange}
+								bind:this={fileInput}
+							/>
+
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onclick={() => fileInput?.click()}
+							>
+								{photoPreviewUrl ? m.change_photo() : m.upload_photo()}
+							</Button>
+							{#if photoPreviewUrl}
+								<Button type="button" variant="destructive" size="sm" onclick={clearPhoto}>
+									{m.remove_photo()}
+								</Button>
+							{/if}
+						</div>
+					</div>
+					<p class="text-xs text-muted-foreground">{m.optional()}</p>
+				</div>
+
 				<Form.Field {form} name="first_name">
 					<Form.Control>
 						{#snippet children({ props })}

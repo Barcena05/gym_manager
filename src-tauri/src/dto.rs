@@ -13,6 +13,7 @@ pub struct MemberPayload {
     pub email: Option<String>,
     pub phone: Option<String>,
     pub date_of_birth: Option<NaiveDate>,
+    pub photo_path: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -63,6 +64,7 @@ pub struct MemberWithMembershipUpdate {
     pub email: Option<String>,
     pub phone: Option<String>,
     pub date_of_birth: Option<NaiveDate>,
+    pub photo_path: Option<String>,
 
     pub membership_type_id: Option<i64>,
 
@@ -139,6 +141,7 @@ pub struct MemberWithMembership {
     pub email: Option<String>,
     pub phone: Option<String>,
     pub date_of_birth: Option<NaiveDate>,
+    pub photo_path: Option<String>,
     pub member_created_at: NaiveDateTime,
 
     pub membership_type_id: Option<i64>,

@@ -7,6 +7,7 @@ export interface Member {
   email?: string,
   phone?:string,
   date_of_birth?: string,
+  photo_path?: string,
   created_at: Date
   updated_at: Date
   is_deleted: boolean,

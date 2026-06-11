@@ -10,7 +10,7 @@ use crate::{
     state::AppState,
 };
 use tauri::State;
-
+use tauri::Manager;
 const DEFAULT_PAGE: i32 = 1;
 const DEFAULT_PAGE_SIZE: i32 = 20;
 
@@ -41,8 +41,19 @@ pub async fn add_member(payload: MemberPayload, state: State<'_, AppState>) -> A
 
     let result = sqlx::query!(
             r#"
-            INSERT INTO members (card_id, short_card_id, first_name, last_name, email, phone, date_of_birth, created_at, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)
+            INSERT INTO members (
+            card_id,
+            short_card_id,
+            first_name,
+            last_name,
+            email,
+            phone,
+            date_of_birth,
+            photo_path,
+            created_at,
+            updated_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
             "#,
             payload.card_id,
             short_card_id,
@@ -51,6 +62,8 @@ pub async fn add_member(payload: MemberPayload, state: State<'_, AppState>) -> A
             payload.email,
             payload.phone,
             payload.date_of_birth,
+            payload.photo_path,
+            now,
             now
         )
         .execute(&state.db_pool)
@@ -68,7 +81,7 @@ pub async fn add_member(payload: MemberPayload, state: State<'_, AppState>) -> A
             let new_type = sqlx::query_as!(
                     Member,
                     r#"
-                    SELECT id, card_id, short_card_id, first_name, last_name, email, phone, date_of_birth, created_at, updated_at, is_deleted
+                    SELECT id, card_id, short_card_id, first_name, last_name, email, phone, date_of_birth, photo_path, created_at, updated_at, is_deleted
                     FROM members
                     WHERE id = ?
                     "#,
@@ -303,7 +316,7 @@ pub async fn get_member_by_id_with_membership(
       MemberWithMembership,
       r#"
       SELECT
-          m.id as id, m.card_id, m.short_card_id, m.first_name, m.last_name, m.email, m.date_of_birth, m.phone, m.created_at as member_created_at,
+          m.id as id, m.card_id, m.short_card_id, m.first_name, m.last_name, m.email, m.date_of_birth, m.photo_path, m.phone, m.created_at as member_created_at,
           ms.id as membership_id,
           ms.start_date as membership_start_date,
           ms.end_date as membership_end_date,
@@ -377,7 +390,7 @@ pub async fn get_member_by_id(
     let member = sqlx::query_as!(
         Member,
         r#"
-        SELECT id, card_id, short_card_id, first_name, last_name, email, phone, date_of_birth, created_at, updated_at, is_deleted
+        SELECT id, card_id, short_card_id, first_name, last_name, email, phone, date_of_birth, photo_path, created_at, updated_at, is_deleted
         FROM members
         WHERE id = ? AND is_deleted = FALSE
         "#,
@@ -451,7 +464,7 @@ pub async fn update_member(
         r#"
         UPDATE members SET
             card_id = ?, short_card_id = ?, first_name = ?, last_name = ?,
-            email = ?, phone = ?, date_of_birth = ?, updated_at = ?
+            email = ?, phone = ?, date_of_birth = ?, photo_path = ?, updated_at = ?
         WHERE id = ? AND is_deleted = FALSE
         "#,
         payload.card_id,
@@ -461,6 +474,7 @@ pub async fn update_member(
         payload.email,
         payload.phone,
         payload.date_of_birth,
+        payload.photo_path,
         now,
         member_id
     )
@@ -501,4 +515,85 @@ pub async fn update_member(
             Err(AppError::Sqlx(e)) // Convert general SQLx errors
         }
     }
+}
+
+use std::path::PathBuf;
+use tauri::AppHandle;
+use tokio::fs;
+
+#[tauri::command]
+pub async fn save_member_photo(
+    app_handle: AppHandle,
+    member_id: i64,
+    photo_bytes: Vec<u8>,
+    extension: String,
+    state: State<'_, AppState>,
+) -> AppResult<String> {
+    // Get app data directory
+    let app_data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|_| AppError::Config("Cannot determine app data directory".to_string()))?;
+    
+    let photos_dir = app_data_dir.join("photos");
+    fs::create_dir_all(&photos_dir).await?;
+    
+    // Generate filename
+    let filename = format!("{}.{}", member_id, extension);
+    let file_path = photos_dir.join(&filename);
+    
+    // Write photo
+    fs::write(&file_path, photo_bytes).await?;
+    
+    let relative_path = format!("photos/{}", filename);
+    
+    // Update database
+    sqlx::query!(
+        "UPDATE members SET photo_path = ? WHERE id = ?",
+        relative_path,
+        member_id
+    )
+    .execute(&state.db_pool)
+    .await?;
+    
+    Ok(relative_path)
+}
+
+#[tauri::command]
+pub async fn delete_member_photo(
+    app_handle: AppHandle,
+    member_id: i64,
+    state: State<'_, AppState>,
+) -> AppResult<()> {
+    // Get current photo path
+    let record = sqlx::query!(
+        "SELECT photo_path FROM members WHERE id = ?",
+        member_id
+    )
+    .fetch_optional(&state.db_pool)
+    .await?;
+    
+    if let Some(record) = record {
+        if let Some(photo_path) = record.photo_path {
+            let app_data_dir = app_handle
+                .path()
+                .app_data_dir()
+                .map_err(|_| AppError::Config("Cannot determine app data directory".to_string()))?;
+            
+            let file_path = app_data_dir.join(&photo_path);
+            if file_path.exists() {
+                fs::remove_file(file_path).await?;
+            }
+            
+            // Clear database field
+            sqlx::query!(
+                "UPDATE members SET photo_path = NULL WHERE id = ?",
+                member_id
+            )
+            .execute(&state.db_pool)
+            .await?;
+        }
+    }
+    
+    Ok(())
 }

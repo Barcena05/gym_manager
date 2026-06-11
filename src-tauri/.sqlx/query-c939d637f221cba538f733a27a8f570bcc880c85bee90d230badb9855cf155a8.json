@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT photo_path FROM members WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "photo_path",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c939d637f221cba538f733a27a8f570bcc880c85bee90d230badb9855cf155a8"
+}

@@ -30,6 +30,7 @@ export interface MemberWithMembership {
 	email: string | null;
 	phone: string | null;
 	date_of_birth: string | null;
+	photo_path: string | null;
 	member_created_at: string;
 
 	membership_id: number | null;

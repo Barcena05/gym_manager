@@ -24,12 +24,36 @@
 	import { setHeader, setLoading } from '$lib/stores/state';
 	import type { QueryResponse } from '$lib/models/table-state';
 	import { m } from '$lib/paraglide/messages';
+	import { appDataDir, join } from '@tauri-apps/api/path';
+	import { convertFileSrc } from '@tauri-apps/api/core';
 
 	let isLoadingHistory = $state(true);
 	let error: string | null = $state(null);
 	const memberId = $derived(page.params.id);
 
 	let data: MemberWithMembership | null = $state(null);
+	let photoUrl: string | null = $state(null);
+	let showPhoto = $state(false);
+
+	async function loadPhotoUrl() {
+		if (!data?.photo_path) {
+			photoUrl = null;
+			return;
+		}
+
+		try {
+			const dataDir = await appDataDir();
+			const fullPath = await join(dataDir, data.photo_path);
+
+			console.log('FINAL PATH:', fullPath);
+
+			// IMPORTANTE: NO file://, NO manual URL
+			photoUrl = convertFileSrc(fullPath);
+		} catch (err) {
+			console.error(err);
+			photoUrl = null;
+		}
+	}
 
 	let membershipParams = $state({
 		page: 1,
@@ -48,6 +72,7 @@
 			});
 			if (result) {
 				data = result;
+				await loadPhotoUrl();
 			}
 		} catch (e: any) {
 			console.error('Error fetching member with membership:', e);
@@ -203,6 +228,26 @@
 				</Card.Header>
 				<Card.Content>
 					<div class="space-y-6">
+						<!-- Member Photo -->
+						<div class="flex justify-center mb-4">
+							{#if photoUrl}
+								<img
+									src={photoUrl}
+									alt={m.member_photo()}
+									class="w-32 h-32 rounded-full object-cover shadow-md cursor-pointer"
+									onclick={() => {
+									console.log('CLICK FOTO');
+									console.log('photoUrl:', photoUrl);
+									showPhoto = true;
+								}}
+								/>
+							{:else}
+								<div class="w-32 h-32 rounded-full bg-muted flex items-center justify-center shadow-sm">
+									<span class="text-muted-foreground text-sm">{m.no_photo()}</span>
+								</div>
+							{/if}
+						</div>
+
 						<div class="w-full space-y-2">
 							<Label class="font-semibold">{m.first_name()}</Label>
 							<Input readonly type="text" value={data?.first_name || ''} />
@@ -513,5 +558,18 @@
 				{/if}
 			</Card.Content>
 		</Card.Root>
+		{#if showPhoto && photoUrl}
+			<div
+				class="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center"
+				onclick={() => (showPhoto = false)}
+			>
+				<img
+					src={photoUrl}
+					alt="fullscreen photo"
+					class="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-lg"
+					onclick={(e) => e.stopPropagation()}
+				/>
+			</div>
+		{/if}
 	</div>
 </div>

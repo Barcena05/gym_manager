@@ -23,6 +23,7 @@ pub struct Member {
     pub email: Option<String>,
     pub phone: Option<String>,
     pub date_of_birth: Option<NaiveDate>,
+    pub photo_path: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub is_deleted: bool,
