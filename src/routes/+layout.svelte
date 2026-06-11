@@ -33,6 +33,7 @@
 	import { listen } from '@tauri-apps/api/event';
 	import { m } from '$lib/paraglide/messages';
 	import { translateAppStatus, translateRole } from '$lib/utils';
+	import { exchangeRate } from '$lib/stores/settings';
 
 	let { children } = $props();
 	$effect(() => {
@@ -66,6 +67,7 @@
 		backup_period_hours: number;
 		backup_enabled: boolean;
 		gym_name: string;
+		usd_to_cup_rate: number;
 	}
 
 	async function loadAndApplySettings() {
@@ -86,6 +88,7 @@
 			} else {
 				gymName = 'Gym';
 			}
+			exchangeRate.set(settings.usd_to_cup_rate);
 		} catch (e: any) {
 			console.log(e);
 			toast.error(m['main.toast_failed_settings']());

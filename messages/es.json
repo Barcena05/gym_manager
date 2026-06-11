@@ -287,7 +287,7 @@
 	"previous": "Anterior",
 	"next": "Siguiente",
 	"locale_code": "es-ES",
-	"locale_currency": "EUR",
+	"locale_currency": "USD",
 	"allowed": "allowed",
 	"allowed_single": "allowed_single",
 	"denied_member_not_found": "denied_member_not_found",

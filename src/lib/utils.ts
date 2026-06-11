@@ -25,7 +25,10 @@ type FlyAndScaleParams = {
 	start?: number;
 	duration?: number;
 };
-
+export function formatCurrency(usd: number, rate: number): string {
+    const cup = usd * rate;
+    return `$${usd.toFixed(2)} USD / ${cup.toFixed(2)} CUP`;
+}
 export function translateEntryMessage(message: string|null): string {
 	const [key, param] = message ?  message.split('|') : ['', ''];
 

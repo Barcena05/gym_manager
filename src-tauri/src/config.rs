@@ -16,6 +16,7 @@ pub struct AppSettings {
     pub backup_enabled: bool,
     pub gym_name: String,
     pub gym_code: String,
+    pub usd_to_cup_rate: f64,
 }
 impl Default for AppSettings {
     fn default() -> Self {
@@ -35,6 +36,7 @@ impl Default for AppSettings {
                     .collect();
                 code
             },
+            usd_to_cup_rate: 600.0,
         }
     }
 }

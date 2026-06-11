@@ -9,7 +9,8 @@ export const settingsSchema = z
 		gym_name: z.string(),
 		backup_enabled: z.boolean(),
 		backup_url: z.string().optional().nullable(),
-		backup_period_hours: z.number().optional()
+		backup_period_hours: z.number().optional(),
+		usd_to_cup_rate: z.number().positive().default(600),
 	})
 	.refine(
 		(data) => {

@@ -24,8 +24,17 @@
 	import { translateErrorCode } from '$lib/utils';
 	import { requireRole } from '../../../guards';
 	import Checkbox from '$lib/components/ui/checkbox/checkbox.svelte';
+	
+	// 👇 Importar el store del tipo de cambio
+	import { exchangeRate } from '$lib/stores/settings';
 
 	let error: string | null = $state(null);
+	
+	// 👇 Variable reactiva para el tipo de cambio actual
+	let currentRate = 24;
+	exchangeRate.subscribe(rate => {
+		currentRate = rate;
+	});
 
 	const membershipTypeId = $derived(page.params.id);
 
@@ -199,18 +208,26 @@
 					</Form.Control>
 				</Form.Field>
 
+				<!-- Campo de precio modificado: muestra USD editable y CUP equivalente debajo -->
 				<Form.Field {form} name="price">
 					<Form.Control>
 						{#snippet children({ props })}
-							<Form.Label class="font-semibold">{m['common.price']()}</Form.Label>
+							<Form.Label class="font-semibold">{m['common.price']()} (USD)</Form.Label>
 							<div class="relative flex">
-								<Input {...props} type="number" class="pr-15" bind:value={$formData.price} />
+								<Input {...props} type="number" step="0.01" class="pr-15" bind:value={$formData.price} />
 								<span
 									class="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground pointer-events-none text-xs"
 								>
-									{m.locale_currency()}
+									USD
 								</span>
 							</div>
+							<!-- Mostrar el equivalente en CUP si el rate es válido y el precio no está vacío -->
+							{#if $formData.price !== null && currentRate > 0}
+								<div class="text-sm text-muted-foreground mt-1">
+									Equivalente en CUP: {($formData.price * currentRate).toFixed(2)} CUP
+									(tipo de cambio: 1 USD = {currentRate} CUP)
+								</div>
+							{/if}
 							<Form.FieldErrors />
 						{/snippet}
 					</Form.Control>

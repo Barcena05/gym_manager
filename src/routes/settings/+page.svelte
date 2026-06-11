@@ -242,6 +242,15 @@
 						{/snippet}
 					</Form.Control>
 				</Form.Field>
+				<Form.Field {form} name="usd_to_cup_rate">
+					<Form.Control>
+						{#snippet children({ props })}
+							<Form.Label class="font-semibold">USD → CUP Rate</Form.Label>
+							<Input {...props} type="number" step="0.01" bind:value={$formData.usd_to_cup_rate} />
+							<Form.FieldErrors />
+						{/snippet}
+					</Form.Control>
+				</Form.Field>
 				<Form.Field {form} name="theme">
 					<Form.Control>
 						{#snippet children({ props })}

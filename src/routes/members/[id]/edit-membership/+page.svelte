@@ -29,6 +29,9 @@
 	import type { ErrorResponse } from '$lib/models/error';
 	import { m } from '$lib/paraglide/messages';
 	import DateField from '$lib/components/date-field/date-field.svelte';
+	
+	// 👇 Importar el store del tipo de cambio
+	import { exchangeRate } from '$lib/stores/settings';
 
 	let error: string | null = $state(null);
 	const locale = m.locale_code() || 'bs-BA';
@@ -40,6 +43,12 @@
 	let selectedMembershipType: MembershipType | null = $state(null);
 	let membership_status: string | null = $state(null);
 	let memberData = $state<{ first_name: string | null; last_name: string | null } | null>(null);
+	
+	// 👇 Tipo de cambio actual
+	let currentRate = 24;
+	exchangeRate.subscribe(rate => {
+		currentRate = rate;
+	});
 
 	async function fetchMembershipTypes() {
 		error = null;
@@ -345,20 +354,31 @@
 						</div>
 					</div>
 
+					<!-- 👇 Precio: USD y CUP (solo lectura) -->
 					<div class="w-full space-y-2 pb-2">
 						<Label class="font-semibold">{m.price()}</Label>
-						<div class="relative flex">
-							<Input
-								type="text"
-								class="pr-15"
-								readonly
-								value={selectedMembershipType?.price ?? ''}
-							/>
-							<span
-								class="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground pointer-events-none text-xs"
-							>
-								{m.locale_currency()}
-							</span>
+						<div class="relative flex flex-col gap-1">
+							<div class="relative">
+								<Input
+									type="text"
+									class="pr-15"
+									readonly
+									value={selectedMembershipType?.price !== undefined && selectedMembershipType?.price !== null
+										? selectedMembershipType.price.toFixed(2)
+										: ''}
+								/>
+								<span
+									class="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground pointer-events-none text-xs"
+								>
+									USD
+								</span>
+							</div>
+							{#if selectedMembershipType?.price !== undefined && selectedMembershipType?.price !== null && currentRate > 0}
+								<div class="text-sm text-muted-foreground">
+									{ (selectedMembershipType.price * currentRate).toFixed(2) } CUP
+									<span class="text-xs"> (1 USD = {currentRate} CUP)</span>
+								</div>
+							{/if}
 						</div>
 					</div>
 

@@ -26,6 +26,9 @@
 	import { m } from '$lib/paraglide/messages';
 	import { appDataDir, join } from '@tauri-apps/api/path';
 	import { convertFileSrc } from '@tauri-apps/api/core';
+	
+	// 👇 Importar el store del tipo de cambio
+	import { exchangeRate } from '$lib/stores/settings';
 
 	let isLoadingHistory = $state(true);
 	let error: string | null = $state(null);
@@ -34,6 +37,12 @@
 	let data: MemberWithMembership | null = $state(null);
 	let photoUrl: string | null = $state(null);
 	let showPhoto = $state(false);
+	
+	// 👇 Tipo de cambio actual
+	let currentRate = 24;
+	exchangeRate.subscribe(rate => {
+		currentRate = rate;
+	});
 
 	async function loadPhotoUrl() {
 		if (!data?.photo_path) {
@@ -44,10 +53,6 @@
 		try {
 			const dataDir = await appDataDir();
 			const fullPath = await join(dataDir, data.photo_path);
-
-			console.log('FINAL PATH:', fullPath);
-
-			// IMPORTANTE: NO file://, NO manual URL
 			photoUrl = convertFileSrc(fullPath);
 		} catch (err) {
 			console.error(err);
@@ -187,6 +192,7 @@
 <div class="container mx-auto p-4 md:p-8 max-w-7xl">
 	<div class="space-y-10 w-full">
 		<div class="grid grid-cols-1 xl:grid-cols-2 gap-6 xl:gap-10">
+			<!-- Columna izquierda: Datos del miembro (sin cambios) -->
 			<Card.Root class="w-full">
 				<Card.Header>
 					<Card.Title class="text-2xl flex justify-between"
@@ -236,10 +242,10 @@
 									alt={m.member_photo()}
 									class="w-32 h-32 rounded-full object-cover shadow-md cursor-pointer"
 									onclick={() => {
-									console.log('CLICK FOTO');
-									console.log('photoUrl:', photoUrl);
-									showPhoto = true;
-								}}
+										console.log('CLICK FOTO');
+										console.log('photoUrl:', photoUrl);
+										showPhoto = true;
+									}}
 								/>
 							{:else}
 								<div class="w-32 h-32 rounded-full bg-muted flex items-center justify-center shadow-sm">
@@ -287,6 +293,7 @@
 				</Card.Content>
 			</Card.Root>
 
+			<!-- Columna derecha: Membresía actual -->
 			<Card.Root class="w-full">
 				<Card.Header>
 					<Card.Title class="text-2xl flex justify-between"
@@ -351,20 +358,31 @@
 								</div>
 							</div>
 
+							<!-- 👇 Precio: USD y CUP -->
 							<div class="w-full space-y-2 pb-2">
 								<Label class="font-semibold">{m['common.price']()}</Label>
-								<div class="relative flex">
-									<Input
-										class="pr-15"
-										type="text"
-										readonly
-										value={data?.membership_type_price ?? ''}
-									/>
-									<span
-										class="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground pointer-events-none text-xs"
-									>
-										{m.locale_currency()}
-									</span>
+								<div class="relative flex flex-col gap-1">
+									<div class="relative">
+										<Input
+											class="pr-15"
+											type="text"
+											readonly
+											value={data?.membership_type_price !== null && data?.membership_type_price !== undefined
+												? data.membership_type_price.toFixed(2)
+												: ''}
+										/>
+										<span
+											class="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground pointer-events-none text-xs"
+										>
+											USD
+										</span>
+									</div>
+									{#if data?.membership_type_price !== null && data?.membership_type_price !== undefined && currentRate > 0}
+										<div class="text-sm text-muted-foreground">
+											{ (data.membership_type_price * currentRate).toFixed(2) } CUP
+											<span class="text-xs"> (1 USD = {currentRate} CUP)</span>
+										</div>
+									{/if}
 								</div>
 							</div>
 
@@ -434,6 +452,7 @@
 			</Card.Root>
 		</div>
 
+		<!-- Historial de membresías (sin cambios) -->
 		<Card.Root class="mt-6">
 			<Card.Header>
 				<Card.Title>{m.membership_history()}</Card.Title>
@@ -441,7 +460,6 @@
 			<Card.Content>
 				{#if isLoadingHistory}
 					<p>{m.loading_history()}</p>
-					<!-- Skeleton loaders -->
 				{:else if membershipHistory.data.length === 0}
 					<p class="text-muted-foreground">{m.no_past_or_future_memberships()}</p>
 				{:else}

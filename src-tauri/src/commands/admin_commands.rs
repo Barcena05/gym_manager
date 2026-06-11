@@ -254,6 +254,7 @@ pub struct UpdateAppSettingsPayload {
     pub backup_period_hours: Option<u64>,
     pub backup_enabled: Option<bool>,
     pub gym_name: Option<String>,
+    pub usd_to_cup_rate: Option<f64>,
 }
 
 #[tauri::command]
@@ -264,7 +265,10 @@ pub async fn update_app_settings(
 ) -> AppResult<()> {
     let mut settings = app_state.settings.write().await;
     let mut changed = false;
-
+    if let Some(rate) = payload.usd_to_cup_rate {
+        settings.usd_to_cup_rate = rate;
+        changed = true;
+    }
     if let Some(lang) = payload.language {
         settings.language = lang;
         changed = true;
