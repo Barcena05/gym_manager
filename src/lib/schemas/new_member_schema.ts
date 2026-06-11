@@ -6,8 +6,10 @@ export const newMemberSchema = z.object({
 	last_name: z.string().min(1, m.last_name_required()),
 	card_id: z
 		.string()
-		.length(8, m.id_must_8())
-		.regex(/^\d{8}$/, m.id_must_be_digits()),
+		.regex(/^\d+$/, "Only numbers allowed")
+		.transform(val => parseInt(val, 10))
+		.refine(val => val >= 1 && val <= 1000, "Card number must be between 1 and 1000")
+		.transform(val => val.toString()), // back to string
 	email: z.string().email(m.invalid_email_format()).or(z.literal('')).optional().nullable(),
 	phone: z.string().optional().nullable(),
 	date_of_birth: z.string().optional().nullable()
