@@ -193,7 +193,7 @@
 									type="number"
 									min="1"
 									max="24"
-									placeholder="optional"
+									placeholder={m.optional()}
 									bind:value={$formData.enter_by}
 									class="pr-15"
 								/>

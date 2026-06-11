@@ -3,6 +3,7 @@
 	import ChevronRightIcon from "@lucide/svelte/icons/chevron-right";
 	import { buttonVariants } from "$lib/components/ui/button/index.js";
 	import { cn } from "$lib/utils.js";
+	import {m} from "$lib/paraglide/messages"
 
 	let {
 		ref = $bindable(null),
@@ -19,7 +20,7 @@
 
 <PaginationPrimitive.NextButton
 	bind:ref
-	aria-label="Go to next page"
+	aria-label={m.goto_next()}
 	class={cn(
 		buttonVariants({
 			size: "default",

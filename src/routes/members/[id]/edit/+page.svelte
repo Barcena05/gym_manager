@@ -196,9 +196,9 @@
 
 				<div class="flex items-center gap-4">
 					{#if photoPreviewUrl}
-						<img src={photoPreviewUrl} alt="selected preview" class="w-20 h-20 rounded-full object-cover" />
+						<img src={photoPreviewUrl} alt={m.member_photo()} class="w-20 h-20 rounded-full object-cover" />
 					{:else if existingPhotoUrl}
-						<img src={existingPhotoUrl} alt="existing preview" class="w-20 h-20 rounded-full object-cover" />
+						<img src={existingPhotoUrl} alt={m.member_photo()} class="w-20 h-20 rounded-full object-cover" />
 					{:else}
 						<div class="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
 							<span>No photo</span>

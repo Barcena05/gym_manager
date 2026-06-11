@@ -442,7 +442,7 @@
 						</div>
 					{:else}
 						<div class="flex flex-col h-full items-center justify-center space-y-4">
-							<Button onclick={() => handleAddNewMembership(data?.id)} title="Edit Member"
+							<Button onclick={() => handleAddNewMembership(data?.id)} title={m.edit_member()}
 								>{m.assign_membership()}</Button
 							>
 							<p class="text-muted-foreground">{m.no_membership_yet()}</p>
@@ -518,7 +518,7 @@
 
 										<AlertDialog.Root>
 											<AlertDialog.Trigger>
-												<Button variant="destructive" size="icon" title="Delete">
+												<Button variant="destructive" size="icon" title={m['common.delete']()}>
 													<Trash2 class="h-4 w-4" />
 												</Button>
 											</AlertDialog.Trigger>
@@ -583,7 +583,7 @@
 			>
 				<img
 					src={photoUrl}
-					alt="fullscreen photo"
+					alt={m.member_photo()}
 					class="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-lg"
 					onclick={(e) => e.stopPropagation()}
 				/>

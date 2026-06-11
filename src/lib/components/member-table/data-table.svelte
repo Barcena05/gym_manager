@@ -377,7 +377,7 @@
 			size="icon"
 			disabled={row.getValue('membership_status') !== 'active' &&
 				row.getValue('membership_status') !== 'expired'}
-			title="Renew Membership"
+			title={m.renew_membership()}
 		>
 			<RefreshCcw class="h-4 w-4" />
 		</Button>
@@ -388,7 +388,7 @@
 			}}
 			variant="outline"
 			size="icon"
-			title="Edit Member"
+			title={m.edit_member()}
 		>
 			<Pencil class="h-4 w-4" />
 		</Button>

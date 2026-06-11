@@ -177,7 +177,7 @@
 					<Label class="font-semibold">{m.photo()}</Label>
 					<div class="flex items-center gap-4">
 						{#if photoPreviewUrl}
-							<img src={photoPreviewUrl} alt="Preview" class="w-20 h-20 rounded-full object-cover" />
+							<img src={photoPreviewUrl} alt={m.member_photo()} class="w-20 h-20 rounded-full object-cover" />
 						{:else}
 							<div class="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
 								<span class="text-muted-foreground text-xs">{m.no_photo()}</span>
