@@ -118,7 +118,7 @@
 					userId: result.data.user_id,
 					newPassword: result.data.new_password
 				});
-				toast.success(m.password_change_success());
+				toast.success(m.password_changed_success());
 				handleCancel();
 			} else {
 				toast.error(m.toast_error_invalid_data());
