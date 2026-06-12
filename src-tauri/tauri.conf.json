@@ -50,6 +50,7 @@
 				"https://github.com/c-danil0o/gym_manager/releases/latest/download/latest.json"
 			],
 			"dialog": true,
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQwMDBCNTUwMDYxODJBMDIKUldRQ0toZ0dVTFVBMEF2L0YwK0x5dVA3eWN0RlpsQzdhdnJ2RTkvZHVmVlE4cXd0Yk9qVEtHR0cK",
 			"windows": {
 				"installMode": "basicUi",
 				"installerArgs": []
