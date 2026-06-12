@@ -11,6 +11,8 @@ export const settingsSchema = z
 		backup_url: z.string().optional().nullable(),
 		backup_period_hours: z.number().optional(),
 		usd_to_cup_rate: z.number().positive().default(600),
+		logo_path: z.string().optional().nullable(),
+		login_background_path: z.string().optional().nullable(),
 	})
 	.refine(
 		(data) => {

@@ -34,12 +34,31 @@
 	import { m } from '$lib/paraglide/messages';
 	import { translateAppStatus, translateRole } from '$lib/utils';
 	import { exchangeRate } from '$lib/stores/settings';
+	import { convertFileSrc } from '@tauri-apps/api/core';
+	import { appDataDir, join } from '@tauri-apps/api/path';
 
 	let { children } = $props();
+
+	let appSettings = $state<AppSettings | null>(null);
+	let logoUrl = $state<string | null>(null);
+	let mounted = $state(false);
+	let gymName = $state('Gym');
+	let status = $state<string | null>(null);
+
 	$effect(() => {
 		if (browser && !$auth.isAuthenticated && page.url.pathname !== '/') {
 			goto('/');
 			resetHeader();
+		}
+	});
+	
+	$effect(async () => {
+		if (appSettings?.logo_path) {
+			const dataDir = await appDataDir();
+			const fullPath = await join(dataDir, appSettings.logo_path);
+			logoUrl = convertFileSrc(fullPath);
+		} else {
+			logoUrl = null;
 		}
 	});
 	function handleBack() {
@@ -50,9 +69,7 @@
 		}
 	}
 
-	let mounted = $state(false);
-	let gymName = $state('Gym');
-	let status = $state<string | null>(null);
+	
 
 	function handleLogout() {
 		auth.logout();
@@ -68,11 +85,14 @@
 		backup_enabled: boolean;
 		gym_name: string;
 		usd_to_cup_rate: number;
+		logo_path?: string | null;           // <-- añadir
+		login_background_path?: string | null; // <-- si lo usas
 	}
 
 	async function loadAndApplySettings() {
 		try {
 			const settings = await invoke<AppSettings>('get_app_settings');
+			appSettings = settings;
 			console.log('App settings loaded:', settings);
 
 			if (settings.language && isLocale(settings.language)) {
@@ -155,7 +175,11 @@
 			<div class="flex h-full max-h-screen flex-col gap-2">
 				<div class="flex h-14 items-center mx-1.5 px-4 my-1.5 border-b lg:h-[60px] lg:px-6">
 					<a href="/" class="flex items-center gap-2 font-semibold">
-						<Dumbbell class="h-6 w-6" />
+						{#if logoUrl}
+							<img src={logoUrl} class="h-8 w-auto" alt="Logo" />
+						{:else}
+							<Dumbbell class="h-6 w-6" />
+						{/if}
 						<span class="">{gymName}</span>
 					</a>
 				</div>
@@ -251,8 +275,12 @@
 					</Sheet.Trigger>
 					<Sheet.Content side="left" class="flex flex-col">
 						<nav class="grid gap-2 text-lg font-medium">
-							<a href="##" class="flex items-center gap-2 mb-3 text-lg font-semibold">
-								<Dumbbell class="h-6 w-6" />
+							<a href="/" class="flex items-center gap-2 font-semibold">
+								{#if logoUrl}
+									<img src={logoUrl} class="h-8 w-auto" alt="Logo" />
+								{:else}
+									<Dumbbell class="h-6 w-6" />
+								{/if}
 								<span class="">{gymName}</span>
 							</a>
 							<a

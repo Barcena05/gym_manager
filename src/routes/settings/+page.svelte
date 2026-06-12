@@ -2,7 +2,7 @@
 	import { superForm } from 'sveltekit-superforms';
 	import { zodClient } from 'sveltekit-superforms/adapters';
 	import type { z } from 'zod';
-	import { invoke } from '@tauri-apps/api/core';
+	import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 
@@ -25,7 +25,7 @@
 	import Label from '$lib/components/ui/label/label.svelte';
 	import Switch from '$lib/components/ui/switch/switch.svelte';
 	import { relaunch } from '@tauri-apps/plugin-process';
-
+	import { appDataDir, join } from '@tauri-apps/api/path';
 	const languages = [
 		{ id: 'en', name: 'English' },
 		{ id: 'rs', name: 'Srpski' },
@@ -50,7 +50,121 @@
 		backup_url: '',
 		backup_period_hours: 0
 	};
+	let logoInput: HTMLInputElement;
+	let logoPreviewUrl = $state<string | null>(null);
 
+	let bgInput: HTMLInputElement;
+	let loginBgPreviewUrl = $state<string | null>(null);
+
+	$effect(() => {
+		let cancelled = false;
+		(async () => {
+			if ($formData.login_background_path) {
+				try {
+					const dataDir = await appDataDir();
+					const fullPath = await join(dataDir, $formData.login_background_path);
+					if (!cancelled) loginBgPreviewUrl = convertFileSrc(fullPath);
+				} catch (err) {
+					console.error(err);
+					if (!cancelled) loginBgPreviewUrl = null;
+				}
+			} else {
+				if (!cancelled) loginBgPreviewUrl = null;
+			}
+		})();
+		return () => { cancelled = true; };
+	});
+
+	async function handleBgUpload(e: Event) {
+		const file = (e.target as HTMLInputElement).files?.[0];
+		if (!file) return;
+		if (!file.type.startsWith('image/')) {
+			toast.error(m.only_images_allowed());
+			return;
+		}
+		const reader = new FileReader();
+		reader.onload = async (ev) => {
+			const arrayBuffer = ev.target?.result as ArrayBuffer;
+			const bytes = new Uint8Array(arrayBuffer);
+			const ext = file.name.split('.').pop() || 'jpg';
+			try {
+				const path = await invoke<string>('upload_login_background', { bgBytes: Array.from(bytes), extension: ext });
+				$formData.login_background_path = path;
+				toast.success("Fondo actualizado");
+			} catch (err) {
+				console.error(err);
+				toast.error("Error al subir fondo");
+			}
+		};
+		reader.readAsArrayBuffer(file);
+	}
+
+	async function removeBg() {
+		try {
+			await invoke('remove_login_background');
+			$formData.login_background_path = null;
+			toast.success("Fondo eliminado");
+		} catch (err) {
+			console.error(err);
+			toast.error("Error al eliminar fondo");
+		}
+	}
+
+	$effect(() => {
+		let cancelled = false;
+		(async () => {
+			if ($formData.logo_path) {
+				try {
+					const dataDir = await appDataDir();
+					const fullPath = await join(dataDir, $formData.logo_path);
+					if (!cancelled) {
+						logoPreviewUrl = convertFileSrc(fullPath);
+					}
+				} catch (err) {
+					console.error('Error loading logo preview:', err);
+					if (!cancelled) logoPreviewUrl = null;
+				}
+			} else {
+				if (!cancelled) logoPreviewUrl = null;
+			}
+		})();
+		return () => { cancelled = true; };
+	});
+
+	async function handleLogoUpload(e: Event) {
+		const file = (e.target as HTMLInputElement).files?.[0];
+		if (!file) return;
+		if (!file.type.startsWith('image/')) {
+			toast.error(m.only_images_allowed());
+			return;
+		}
+		const reader = new FileReader();
+		reader.onload = async (ev) => {
+			const arrayBuffer = ev.target?.result as ArrayBuffer;
+			const bytes = new Uint8Array(arrayBuffer);
+			const ext = file.name.split('.').pop() || 'png';
+			try {
+				const path = await invoke<string>('upload_logo', { logoBytes: Array.from(bytes), extension: ext });
+				$formData.logo_path = path;
+				toast.success("Logo actualizado");
+			} catch (err) {
+				console.error(err);
+				toast.error("Error al subir logo");
+			}
+		};
+		reader.readAsArrayBuffer(file);
+	}
+
+	async function removeLogo() {
+		try {
+			await invoke('remove_logo');
+			$formData.logo_path = null;
+			toast.success("Logo eliminado");
+		} catch (err) {
+			console.error(err);
+			toast.error("Error al eliminar logo");
+		}
+	}
 	const form = superForm(initialValues, {
 		validators: zodClient(settingsSchema),
 		syncFlashMessage: true,
@@ -242,6 +356,38 @@
 						{/snippet}
 					</Form.Control>
 				</Form.Field>
+				<Separator />
+				<Card.Title class="text-xl">Logo del gimnasio</Card.Title>
+				<div class="flex items-center gap-4">
+					{#if logoPreviewUrl}
+						<img src={logoPreviewUrl} class="h-12 w-auto" alt="Logo" />
+					{:else}
+						<div class="h-12 w-12 rounded bg-muted flex items-center justify-center text-xs">Sin logo</div>
+					{/if}
+					
+					<input type="file" accept="image/*" onchange={handleLogoUpload} class="hidden" bind:this={logoInput} />
+					<Button type="button" variant="outline" onclick={() => logoInput.click()}>Subir logo</Button>
+					
+					{#if $formData.logo_path}
+						<Button type="button" variant="destructive" onclick={removeLogo}>Eliminar</Button>
+					{/if}
+				</div>
+				<Separator />
+				<Card.Title class="text-xl">Fondo de pantalla (Login)</Card.Title>
+				<div class="flex items-center gap-4">
+					{#if loginBgPreviewUrl}
+						<img src={loginBgPreviewUrl} class="h-20 w-auto object-cover rounded" alt="Fondo login" />
+					{:else}
+						<div class="h-20 w-32 rounded bg-muted flex items-center justify-center text-xs">Sin fondo</div>
+					{/if}
+					
+					<input type="file" accept="image/*" onchange={handleBgUpload} class="hidden" bind:this={bgInput} />
+					<Button type="button" variant="outline" onclick={() => bgInput.click()}>Subir fondo</Button>
+					
+					{#if $formData.login_background_path}
+						<Button type="button" variant="destructive" onclick={removeBg}>Eliminar</Button>
+					{/if}
+				</div>
 				<Form.Field {form} name="usd_to_cup_rate">
 					<Form.Control>
 						{#snippet children({ props })}

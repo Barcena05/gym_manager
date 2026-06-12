@@ -10,7 +10,8 @@ use crate::{
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
-
+use tauri::Manager;
+use tokio::fs;
 #[derive(Deserialize)]
 pub struct LoginPayload {
     username: String,
@@ -180,7 +181,78 @@ pub async fn save_user(
         }
     }
 }
+#[tauri::command]
+pub async fn upload_logo(
+    app_handle: AppHandle,
+    logo_bytes: Vec<u8>,
+    extension: String,
+    state: State<'_, AppState>,
+) -> Result<String, AppError> {
+    let app_data_dir = app_handle.path().app_data_dir()?;
+    let logos_dir = app_data_dir.join("logos");
+    fs::create_dir_all(&logos_dir).await?;
+    let filename = format!("logo.{}", extension);
+    let file_path = logos_dir.join(&filename);
+    fs::write(&file_path, logo_bytes).await?;
+    let relative_path = format!("logos/{}", filename);
+    
+    let mut settings = state.settings.write().await;
+    settings.logo_path = Some(relative_path.clone());
+    drop(settings);
+    save_settings(&app_handle, &*state.settings.read().await).await?;
+    
+    app_handle.emit("settings_changed", &*state.settings.read().await)?;
+    Ok(relative_path)
+}
 
+#[tauri::command]
+pub async fn remove_logo(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let mut settings = state.settings.write().await;
+    settings.logo_path = None;
+    drop(settings);
+    save_settings(&app_handle, &*state.settings.read().await).await?;
+    app_handle.emit("settings_changed", &*state.settings.read().await)?;
+    Ok(())
+}
+#[tauri::command]
+pub async fn upload_login_background(
+    app_handle: AppHandle,
+    bg_bytes: Vec<u8>,
+    extension: String,
+    state: State<'_, AppState>,
+) -> Result<String, AppError> {
+    let app_data_dir = app_handle.path().app_data_dir()?;
+    let backgrounds_dir = app_data_dir.join("backgrounds");
+    tokio::fs::create_dir_all(&backgrounds_dir).await?;
+    let filename = format!("login_bg.{}", extension);
+    let file_path = backgrounds_dir.join(&filename);
+    tokio::fs::write(&file_path, bg_bytes).await?;
+    let relative_path = format!("backgrounds/{}", filename);
+    
+    let mut settings = state.settings.write().await;
+    settings.login_background_path = Some(relative_path.clone());
+    drop(settings);
+    save_settings(&app_handle, &*state.settings.read().await).await?;
+    
+    app_handle.emit("settings_changed", &*state.settings.read().await)?;
+    Ok(relative_path)
+}
+
+#[tauri::command]
+pub async fn remove_login_background(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let mut settings = state.settings.write().await;
+    settings.login_background_path = None;
+    drop(settings);
+    save_settings(&app_handle, &*state.settings.read().await).await?;
+    app_handle.emit("settings_changed", &*state.settings.read().await)?;
+    Ok(())
+}
 #[tauri::command]
 pub async fn change_user_password(
     app_state: tauri::State<'_, AppState>,

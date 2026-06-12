@@ -17,6 +17,8 @@ pub struct AppSettings {
     pub gym_name: String,
     pub gym_code: String,
     pub usd_to_cup_rate: f64,
+    pub logo_path: Option<String>,
+    pub login_background_path: Option<String>,
 }
 impl Default for AppSettings {
     fn default() -> Self {
@@ -37,6 +39,8 @@ impl Default for AppSettings {
                 code
             },
             usd_to_cup_rate: 600.0,
+            logo_path: None,
+            login_background_path: None,
         }
     }
 }

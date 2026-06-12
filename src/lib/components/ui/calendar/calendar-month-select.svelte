@@ -12,15 +12,20 @@
 	}: WithoutChildrenOrChild<CalendarPrimitive.MonthSelectProps> = $props();
 </script>
 
-<span
-	class={cn(
-		"has-focus:border-ring border-input shadow-xs has-focus:ring-ring/50 has-focus:ring-[3px] relative flex rounded-md border",
-		className
-	)}
->
-	<CalendarPrimitive.MonthSelect bind:ref class="absolute inset-0 opacity-0" {...restProps}>
-		{#snippet child({ props, monthItems, selectedMonthItem })}
-			<select {...props} {value} {onchange}>
+<CalendarPrimitive.MonthSelect bind:ref {...restProps}>
+	{#snippet child({ props, monthItems, selectedMonthItem })}
+		<div class="relative">
+			<select
+				{...props}
+				{value}
+				{onchange}
+				class={cn(
+					"appearance-none rounded-md border border-input bg-background px-3 py-1 pr-8 text-sm text-foreground shadow-xs",
+					"focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
+					"disabled:cursor-not-allowed disabled:opacity-50",
+					className
+				)}
+			>
 				{#each monthItems as monthItem (monthItem.value)}
 					<option
 						value={monthItem.value}
@@ -32,13 +37,24 @@
 					</option>
 				{/each}
 			</select>
-			<span
-				class="[&>svg]:text-muted-foreground flex h-8 select-none items-center gap-1 rounded-md pl-2 pr-1 text-sm font-medium [&>svg]:size-3.5"
-				aria-hidden="true"
-			>
-				{monthItems.find((item) => item.value === value)?.label || selectedMonthItem.label}
-				<ChevronDownIcon class="size-4" />
-			</span>
-		{/snippet}
-	</CalendarPrimitive.MonthSelect>
-</span>
+			<ChevronDownIcon
+				class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 size-4 text-muted-foreground"
+			/>
+		</div>
+	{/snippet}
+</CalendarPrimitive.MonthSelect>
+
+<style>
+	/* Forzar colores oscuros en las opciones del dropdown nativo */
+	select option {
+		background-color: #2d2d2d !important;
+		color: #f0f0f0 !important;
+	}
+	select option:hover {
+		background-color: #3d3d3d !important;
+	}
+	/* Indicar al navegador que prefiera tema oscuro para el select */
+	select {
+		color-scheme: dark;
+	}
+</style>

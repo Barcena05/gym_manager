@@ -11,15 +11,19 @@
 	}: WithoutChildrenOrChild<CalendarPrimitive.YearSelectProps> = $props();
 </script>
 
-<span
-	class={cn(
-		"has-focus:border-ring border-input shadow-xs has-focus:ring-ring/50 has-focus:ring-[3px] relative flex rounded-md border",
-		className
-	)}
->
-	<CalendarPrimitive.YearSelect bind:ref class="absolute inset-0 opacity-0" {...restProps}>
-		{#snippet child({ props, yearItems, selectedYearItem })}
-			<select {...props} {value}>
+<CalendarPrimitive.YearSelect bind:ref {...restProps}>
+	{#snippet child({ props, yearItems, selectedYearItem })}
+		<div class="relative">
+			<select
+				{...props}
+				{value}
+				class={cn(
+					"appearance-none rounded-md border border-input bg-background px-3 py-1 pr-8 text-sm text-foreground shadow-xs",
+					"focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1",
+					"disabled:cursor-not-allowed disabled:opacity-50",
+					className
+				)}
+			>
 				{#each yearItems as yearItem (yearItem.value)}
 					<option
 						value={yearItem.value}
@@ -31,13 +35,22 @@
 					</option>
 				{/each}
 			</select>
-			<span
-				class="[&>svg]:text-muted-foreground flex h-8 select-none items-center gap-1 rounded-md pl-2 pr-1 text-sm font-medium [&>svg]:size-3.5"
-				aria-hidden="true"
-			>
-				{yearItems.find((item) => item.value === value)?.label || selectedYearItem.label}
-				<ChevronDownIcon class="size-4" />
-			</span>
-		{/snippet}
-	</CalendarPrimitive.YearSelect>
-</span>
+			<ChevronDownIcon
+				class="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 size-4 text-muted-foreground"
+			/>
+		</div>
+	{/snippet}
+</CalendarPrimitive.YearSelect>
+
+<style>
+	select option {
+		background-color: #2d2d2d !important;
+		color: #f0f0f0 !important;
+	}
+	select option:hover {
+		background-color: #3d3d3d !important;
+	}
+	select {
+		color-scheme: dark;
+	}
+</style>

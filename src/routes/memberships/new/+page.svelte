@@ -159,7 +159,7 @@
 						{#snippet children({ props })}
 							<Form.Label class="font-semibold">{m['common.price']()}</Form.Label>
 							<div class="relative flex">
-								<Input {...props} type="number" class="pr-15" bind:value={$formData.price} />
+								<Input {...props} type="number" step="0.01" class="pr-15" bind:value={$formData.price} />
 								<span
 									class="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground pointer-events-none text-xs"
 								>
