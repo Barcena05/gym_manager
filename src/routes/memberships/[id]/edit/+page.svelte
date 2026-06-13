@@ -31,7 +31,7 @@
 	let error: string | null = $state(null);
 	
 	// 👇 Variable reactiva para el tipo de cambio actual
-	let currentRate = 24;
+	let currentRate = $state(660);
 	exchangeRate.subscribe(rate => {
 		currentRate = rate;
 	});
