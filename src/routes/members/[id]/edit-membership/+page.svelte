@@ -45,7 +45,7 @@
 	let memberData = $state<{ first_name: string | null; last_name: string | null } | null>(null);
 	
 	// 👇 Tipo de cambio actual
-	let currentRate = 24;
+	let currentRate = $state(660);
 	exchangeRate.subscribe(rate => {
 		currentRate = rate;
 	});
