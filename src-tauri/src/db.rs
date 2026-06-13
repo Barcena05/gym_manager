@@ -37,7 +37,7 @@ pub async fn init_db(app_handle: &AppHandle) -> Result<SqlitePool> {
     // Connect pool with longer timeout for migration operations
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
-        .acquire_timeout(std::time::Duration::from_secs(30)) // Increased for migrations
+        .acquire_timeout(std::time::Duration::from_secs(30))
         .connect(&db_url)
         .await
         .map_err(|e| AppError::Config(format!("Failed to connect to database: {}", e)))?;
@@ -57,6 +57,13 @@ pub async fn init_db(app_handle: &AppHandle) -> Result<SqlitePool> {
         .execute(&pool)
         .await
         .map_err(|e| AppError::Config(format!("Failed to enable foreign keys: {}", e)))?;
+
+    // 🔍 DIAGNÓSTICO: Imprimir migraciones incrustadas en el binario
+    tracing::info!("=== INICIO DE MIGRACIONES INCRUSTADAS EN EL BINARIO ===");
+    for migration in MIGRATOR.migrations.iter() {
+        tracing::info!(" - v{}: {}", migration.version, migration.description);
+    }
+    tracing::info!("=== FIN DE MIGRACIONES INCRUSTADAS (Total: {}) ===", MIGRATOR.migrations.len());
 
     // Fix CRLF checksum mismatches before running migrations
     let fixed = fix_migration_checksums(&pool).await?;
