@@ -46,7 +46,7 @@
 	let endRenewDisabled = $state(false);
 	
 	// 👇 Tipo de cambio actual
-	let currentRate = 24;
+	let currentRate = $state(660);
 	exchangeRate.subscribe(rate => {
 		currentRate = rate;
 	});
