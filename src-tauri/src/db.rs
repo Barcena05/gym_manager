@@ -16,7 +16,6 @@ pub async fn init_db(app_handle: &AppHandle) -> Result<SqlitePool> {
     }
 
     // Explicitly create empty file if it doesn't exist
-    // This ensures the database file exists before SQLite tries to connect
     if !db_path.exists() {
         tracing::info!("Database file does not exist, creating it...");
         std::fs::File::create(&db_path)
@@ -35,10 +34,10 @@ pub async fn init_db(app_handle: &AppHandle) -> Result<SqlitePool> {
 
     tracing::info!("Connecting to database at: {}", db_url);
 
-    // Connect pool
+    // Connect pool with longer timeout for migration operations
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
-        .acquire_timeout(std::time::Duration::from_secs(5))
+        .acquire_timeout(std::time::Duration::from_secs(30)) // Increased for migrations
         .connect(&db_url)
         .await
         .map_err(|e| AppError::Config(format!("Failed to connect to database: {}", e)))?;
@@ -65,10 +64,13 @@ pub async fn init_db(app_handle: &AppHandle) -> Result<SqlitePool> {
         tracing::info!("Normalized {} migration checksums (CRLF→LF)", fixed);
     }
 
-    // Run migrations
+    // Run migrations with detailed logging
     tracing::info!("Running database migrations...");
-    MIGRATOR.run(&pool).await?;
-    tracing::info!("Database migrations completed.");
+    MIGRATOR.run(&pool).await.map_err(|e| {
+        tracing::error!("Migration failed: {:?}", e);
+        AppError::Config(format!("Database migration failed: {}", e))
+    })?;
+    tracing::info!("Database migrations completed successfully.");
     
     create_default_admin_user_if_not_exists(&pool).await?;
 
@@ -76,7 +78,6 @@ pub async fn init_db(app_handle: &AppHandle) -> Result<SqlitePool> {
 }
 
 /// Fixes migration checksum mismatches caused by CRLF line endings on Windows.
-/// This prevents "table doesn't exist" errors when deploying binaries built on different OSes.
 async fn fix_migration_checksums(pool: &SqlitePool) -> Result<usize> {
     let table_exists: bool = sqlx::query(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='_sqlx_migrations')",
@@ -106,7 +107,6 @@ async fn fix_migration_checksums(pool: &SqlitePool) -> Result<usize> {
                 continue;
             }
 
-            // SHA-384 is 48 bytes — same algorithm, different content (CRLF vs LF)
             if stored.len() == expected.len() {
                 sqlx::query("UPDATE _sqlx_migrations SET checksum = ? WHERE version = ?")
                     .bind(expected)
