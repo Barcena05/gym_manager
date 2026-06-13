@@ -15,7 +15,15 @@ pub async fn init_db(app_handle: &AppHandle) -> Result<SqlitePool> {
         std::fs::create_dir_all(parent_dir)?;
     }
 
-    // DO NOT manually create SQLite file (SQLite handles this)
+    // Explicitly create empty file if it doesn't exist
+    // This ensures the database file exists before SQLite tries to connect
+    if !db_path.exists() {
+        tracing::info!("Database file does not exist, creating it...");
+        std::fs::File::create(&db_path)
+            .map_err(|e| AppError::Config(format!("Failed to create database file: {}", e)))?;
+        tracing::info!("Created empty database file at: {:?}", db_path);
+    }
+
     let db_url = format!(
         "sqlite://{}",
         db_path
@@ -51,19 +59,70 @@ pub async fn init_db(app_handle: &AppHandle) -> Result<SqlitePool> {
         .await
         .map_err(|e| AppError::Config(format!("Failed to enable foreign keys: {}", e)))?;
 
-    // -----------------------------
-    // RUN MIGRATIONS (ONLY ONCE)
-    // -----------------------------
+    // Fix CRLF checksum mismatches before running migrations
+    let fixed = fix_migration_checksums(&pool).await?;
+    if fixed > 0 {
+        tracing::info!("Normalized {} migration checksums (CRLF→LF)", fixed);
+    }
+
+    // Run migrations
     tracing::info!("Running database migrations...");
     MIGRATOR.run(&pool).await?;
     tracing::info!("Database migrations completed.");
-
-    // -----------------------------
-    // APP INITIALIZATION AFTER MIGRATIONS
-    // -----------------------------
+    
     create_default_admin_user_if_not_exists(&pool).await?;
 
     Ok(pool)
+}
+
+/// Fixes migration checksum mismatches caused by CRLF line endings on Windows.
+/// This prevents "table doesn't exist" errors when deploying binaries built on different OSes.
+async fn fix_migration_checksums(pool: &SqlitePool) -> Result<usize> {
+    let table_exists: bool = sqlx::query(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='_sqlx_migrations')",
+    )
+    .fetch_one(pool)
+    .await
+    .and_then(|row| row.try_get(0))
+    .unwrap_or(false);
+
+    if !table_exists {
+        return Ok(0);
+    }
+
+    let mut fixed = 0usize;
+
+    for migration in MIGRATOR.migrations.iter() {
+        let row = sqlx::query("SELECT checksum FROM _sqlx_migrations WHERE version = ?")
+            .bind(migration.version)
+            .fetch_optional(pool)
+            .await?;
+
+        if let Some(row) = row {
+            let stored: Vec<u8> = row.try_get("checksum").unwrap_or_default();
+            let expected: &[u8] = &migration.checksum;
+
+            if stored == expected {
+                continue;
+            }
+
+            // SHA-384 is 48 bytes — same algorithm, different content (CRLF vs LF)
+            if stored.len() == expected.len() {
+                sqlx::query("UPDATE _sqlx_migrations SET checksum = ? WHERE version = ?")
+                    .bind(expected)
+                    .bind(migration.version)
+                    .execute(pool)
+                    .await?;
+                fixed += 1;
+                tracing::info!(
+                    "Fixed CRLF→LF SHA-384 checksum for migration v{}",
+                    migration.version
+                );
+            }
+        }
+    }
+
+    Ok(fixed)
 }
 
 pub fn get_database_path(app_handle: &AppHandle) -> Result<PathBuf> {
