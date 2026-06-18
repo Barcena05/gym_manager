@@ -391,5 +391,11 @@
 	"photo_uploaded": "Foto subida exitosamente",
 	"photo_upload_failed": "Error al subir la foto",
 	"photo_removed": "Foto eliminada exitosamente",
-	"photo_remove_failed": "Error al eliminar la foto"
+	"photo_remove_failed": "Error al eliminar la foto",
+	"take_photo_with_camera": "Tomar foto con cámara",
+	"capture_photo": "Capturar Foto",
+	"capture": "Capturar",
+	"camera_access_denied": "No se pudo acceder a la cámara",
+	"photo_capture_failed": "Error al capturar la foto",
+	"photo_captured": "Foto capturada exitosamente"
 }

@@ -391,5 +391,11 @@
 	"photo_uploaded": "Photo uploaded successfully",
 	"photo_upload_failed": "Failed to upload photo",
 	"photo_removed": "Photo removed successfully",
-	"photo_remove_failed": "Failed to remove photo"
+	"photo_remove_failed": "Failed to remove photo",
+	"take_photo_with_camera": "Take photo with camera",
+	"capture_photo": "Capture Photo",
+	"capture": "Capture",
+	"camera_access_denied": "Could not access camera",
+	"photo_capture_failed": "Failed to capture photo",
+	"photo_captured": "Photo captured successfully"
 }
