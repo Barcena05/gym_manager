@@ -15,6 +15,7 @@
 		getLocalTimeZone,
 		parseDate,
 		today,
+		parseDuration,
 		type DateValue
 	} from '@internationalized/date';
 	import Separator from '$lib/components/ui/separator/separator.svelte';
@@ -379,7 +380,7 @@
 										height="h-9 py-1.5"
 										onValueChange={onChangeStartDate}
 										{locale}
-										minValue={today(getLocalTimeZone())}
+										minValue={today(getLocalTimeZone()).subtract({days:selectedMembershipType?.duration_days?? undefined})}
 									/>
 									<Form.FieldErrors />
 								{/snippet}
@@ -392,6 +393,7 @@
 									<Form.Label class="font-semibold">{m.end_date()}</Form.Label>
 									<DateField
 										{...props}
+										disabled
 										value={end_date}
 										onValueChange={onChangeEndDate}
 										height="h-9 py-1.5"

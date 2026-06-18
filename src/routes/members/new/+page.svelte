@@ -30,6 +30,72 @@
 	let selectedPhoto: { bytes: Uint8Array; extension: string } | null = null;
 	let photoPreviewUrl: string | null = null;
 
+	// --- Camera functionality ---
+	let showCamera = false;
+	let videoElement: HTMLVideoElement | null = null;
+	let stream: MediaStream | null = null;
+
+	async function openCamera() {
+		try {
+			stream = await navigator.mediaDevices.getUserMedia({
+				video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+			});
+			showCamera = true;
+			
+			setTimeout(() => {
+				if (videoElement) {
+					videoElement.srcObject = stream;
+					videoElement.play();
+				}
+			}, 0);
+		} catch (error) {
+			console.error('Failed to access camera:', error);
+			toast.error(m.camera_access_denied());
+		}
+	}
+	
+	function closeCamera() {
+		if (stream) {
+			stream.getTracks().forEach(track => track.stop());
+			stream = null;
+		}
+		showCamera = false;
+	}
+	
+	async function capturePhoto() {
+		if (!videoElement) return;
+		
+		const canvas = document.createElement('canvas');
+		canvas.width = videoElement.videoWidth;
+		canvas.height = videoElement.videoHeight;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) return;
+		
+		ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+		
+		canvas.toBlob(async (blob) => {
+			if (!blob) {
+				toast.error(m.photo_capture_failed());
+				return;
+			}
+			
+			const arrayBuffer = await blob.arrayBuffer();
+			const bytes = new Uint8Array(arrayBuffer);
+			
+			selectedPhoto = {
+				bytes: bytes,
+				extension: 'jpg'
+			};
+			
+			const file = new File([blob], 'captured.jpg', { type: 'image/jpeg' });
+			photoPreviewUrl = URL.createObjectURL(file);
+			
+			closeCamera();
+			toast.success(m.photo_captured());
+		}, 'image/jpeg', 0.9);
+	}
+	// --- end camera functionality ---
+
 	function handlePhotoChange(event: Event) {
 		console.log('FILE INPUT TRIGGERED');
 		const input = event.target as HTMLInputElement;
@@ -200,6 +266,17 @@
 							>
 								{photoPreviewUrl ? m.change_photo() : m.upload_photo()}
 							</Button>
+							
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onclick={openCamera}
+								disabled={showCamera}
+							>
+								{m.take_photo_with_camera()}
+							</Button>
+
 							{#if photoPreviewUrl}
 								<Button type="button" variant="destructive" size="sm" onclick={clearPhoto}>
 									{m.remove_photo()}
@@ -325,3 +402,29 @@
 		</AlertDialog.Root>
 	{/if}
 </div>
+
+<!-- Camera Modal -->
+{#if showCamera}
+	<div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+		<div class="bg-background p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4">
+			<h2 class="text-lg font-semibold mb-4">{m.capture_photo()}</h2>
+			<video bind:this={videoElement} class="w-full rounded-lg bg-black" autoplay muted playsinline></video>
+			<div class="flex justify-center gap-4 mt-4">
+				<button 
+					type="button" 
+					class="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+					onclick={capturePhoto}
+				>
+					{m.capture()}
+				</button>
+				<button 
+					type="button" 
+					class="px-4 py-2 bg-muted text-muted-foreground rounded hover:bg-muted/80"
+					onclick={closeCamera}
+				>
+					{m.cancel()}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

@@ -394,6 +394,7 @@
 										value={start_date}
 										onValueChange={onChangeStartDate}
 										height="h-9 py-1.5"
+										minValue={today(getLocalTimeZone()).subtract({days:selectedMembershipType?.duration_days?? undefined})}
 										{locale}
 									/>
 									<Form.FieldErrors />
@@ -407,6 +408,7 @@
 									<Form.Label class="font-semibold">{m.end_date()}</Form.Label>
 									<DateField
 										{...props}
+										disabled
 										value={end_date}
 										onValueChange={onChangeEndDate}
 										height="h-9 py-1.5"
