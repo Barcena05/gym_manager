@@ -198,7 +198,10 @@ pub async fn get_members_with_memberships_paginated(
             "ORDER BY m.first_name {}, m.last_name {}",
             order_direction, order_direction
         ),
-        Some("card_id") => format!("ORDER BY m.card_id {}", order_direction),
+        Some("card_id") => format!(
+            "ORDER BY CAST(m.card_id AS INTEGER) {}",  // 👈 CAST aquí
+            order_direction
+        ),
         Some("membership_status") => format!("ORDER BY ms.status {}", order_direction),
         _ => "ORDER BY m.last_name ASC, m.first_name ASC".to_string(),
     };

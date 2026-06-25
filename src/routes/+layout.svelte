@@ -122,16 +122,23 @@
 			await loadAndApplySettings();
 
 			unlisten = await listen<AppSettings>('settings_changed', (event) => {
-				console.log('Settings changed event received:', event.payload);
-				toast.info(m['main.toast_settings_updated']());
-				if (event.payload.language && isLocale(event.payload.language)) {
-					setLocale(event.payload.language);
-				}
-				if (event.payload.theme) {
-					setMode(event.payload.theme as 'light' | 'dark' | 'system');
-				}
-				if (event.payload.gym_name) gymName = event.payload.gym_name;
-			});
+			toast.info(m['main.toast_settings_updated']());
+			
+			if (event.payload.language && isLocale(event.payload.language)) {
+				setLocale(event.payload.language);
+			}
+			if (event.payload.theme) {
+				setMode(event.payload.theme as 'light' | 'dark' | 'system');
+			}
+			if (event.payload.gym_name) {
+				gymName = event.payload.gym_name;
+			}
+			
+			// 👇 AGREGAR ESTA LÍNEA
+			if (event.payload.usd_to_cup_rate) {
+				exchangeRate.set(event.payload.usd_to_cup_rate);
+			}
+		});
 			mounted = true;
 		}
 		async function listenForStatus() {

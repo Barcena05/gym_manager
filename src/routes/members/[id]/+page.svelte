@@ -173,7 +173,8 @@
 	const locale = m.locale_code() || 'bs-BA';
 
 	const df = new DateFormatter(locale, {
-		dateStyle: 'long'
+		dateStyle: 'long',
+		timeZone: 'UTC'
 	});
 
 	onMount(async () => {
