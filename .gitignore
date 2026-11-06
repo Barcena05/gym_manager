@@ -22,3 +22,19 @@ vite.config.ts.timestamp-*
 
 # Tauri
 /src-tauri/target
+# Generated Tauri mobile project/schemas; CI regenerates them
+/src-tauri/gen/
+
+# Build artifacts
+/artifacts
+
+# Local/CI Android debug keystore used by scripts/build-android.sh
+/android-ci.keystore
+/*.keystore
+/*.jks
+
+# Local agent/tooling state
+/.opencode/
+
+# Local Tauri signing keys (never commit private keys)
+/~

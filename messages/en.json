@@ -82,6 +82,8 @@
 		"error_unknown": "An unknown error occurred",
 		"recent": "Recent entries",
 		"no_recent": "No recent entries",
+		"scanner_enable": "Enable keyboard scanner",
+		"scanner_disable": "Disable keyboard scanner",
 		"status_allowed": "Entry Allowed",
 		"status_denied": "Entry Denied",
 		"status_issue": "Scan Issue",
@@ -397,5 +399,17 @@
 	"capture": "Capture",
 	"camera_access_denied": "Could not access camera",
 	"photo_capture_failed": "Failed to capture photo",
-	"photo_captured": "Photo captured successfully"
+	"photo_captured": "Photo captured successfully",
+	"view_existing_member": "View existing member details",
+	"checking_existing_member": "Checking if member already exists...",
+	"barcode": {
+		"title": "Barcode",
+		"description": "Barcode generated from the member's Card ID. Use this to scan the member with a barcode reader.",
+		"value_label": "Card ID / Barcode value",
+		"regenerate": "Regenerate",
+		"generation_failed": "Failed to generate barcode",
+		"print": "Print Barcode",
+		"print_all": "Print All Barcodes",
+		"scan_instruction": "Scan this barcode with your barcode reader to check in this member"
+	}
 }

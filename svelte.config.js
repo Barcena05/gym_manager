@@ -14,8 +14,8 @@ const config = {
 		adapter: adapter({
 			fallback: 'index.html'
 		}),
-		paths: {
-			base: '' // Ensure it's set if you're building for subpaths
+        prerender: {
+			handleUnseenRoutes: 'ignore' 
 		}
 	}
 };

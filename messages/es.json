@@ -82,6 +82,8 @@
 		"error_unknown": "Ocurrió un error desconocido",
 		"recent": "Registros recientes",
 		"no_recent": "No hay registros recientes",
+		"scanner_enable": "Activar escáner de teclado",
+		"scanner_disable": "Desactivar escáner de teclado",
 		"status_allowed": "Acceso permitido",
 		"status_denied": "Acceso denegado",
 		"status_issue": "Problema con el escaneo",
@@ -397,5 +399,17 @@
 	"capture": "Capturar",
 	"camera_access_denied": "No se pudo acceder a la cámara",
 	"photo_capture_failed": "Error al capturar la foto",
-	"photo_captured": "Foto capturada exitosamente"
+	"photo_captured": "Foto capturada exitosamente",
+	"view_existing_member": "Ver detalles del miembro existente",
+	"checking_existing_member": "Verificando si el miembro ya existe...",
+	"barcode": {
+		"title": "Código de barras",
+		"description": "Código de barras generado desde el Número de Tarjeta del miembro. Úselo para escanear al miembro con un lector de código de barras.",
+		"value_label": "Número de tarjeta / Valor del código de barras",
+		"regenerate": "Regenerar",
+		"generation_failed": "Error al generar el código de barras",
+		"print": "Imprimir código de barras",
+		"print_all": "Imprimir todos los códigos",
+		"scan_instruction": "Escanear este código de barras con su lector para registrar la entrada del miembro"
+	}
 }

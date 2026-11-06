@@ -30,7 +30,7 @@
 	];
 
 	const form = superForm(initialValues, {
-		validators: zodClient(newUserSchema),
+		validators: zodClient(newUserSchema as any),
 		syncFlashMessage: true,
 		dataType: 'json',
 		SPA: true,

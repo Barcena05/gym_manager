@@ -27,7 +27,7 @@
 	let timerId: number | undefined = undefined;
 	let progressIntervalId: number | undefined = undefined;
 
-	const locale = m.locale_code() || 'bs-BA';
+	const locale = $derived(m.locale_code() || 'bs-BA');
 
 	const df = new DateFormatter(locale, {
 		dateStyle: 'long',

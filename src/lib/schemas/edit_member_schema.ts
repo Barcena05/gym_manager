@@ -7,10 +7,10 @@ export const editMemberSchema = z.object({
 	last_name: z.string().min(1, m.last_name_required()),
 	card_id: z
 		.string()
-		.regex(/^\d+$/, "Only numbers allowed")
-		.transform(val => parseInt(val, 10))
-		.refine(val => val >= 1 && val <= 1000, "Card number must be between 1 and 1000")
-		.transform(val => val.toString()), // back to string
+		.trim()
+		.min(3, 'El número de tarjeta debe tener al menos 3 caracteres')
+		.max(64, 'El número de tarjeta no puede tener más de 64 caracteres')
+		.regex(/^[A-Za-z0-9\-_]+$/, 'Solo se permiten letras, números, guiones y guiones bajos'),
 	email: z.string().email(m.invalid_email_format()).or(z.literal("")).optional().nullable(),
 	phone: z.string().optional().nullable(),
 	date_of_birth: z.string().optional().nullable()

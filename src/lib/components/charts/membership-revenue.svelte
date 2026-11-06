@@ -68,7 +68,7 @@
 					},
 					highlight: { area: { fill: 'none' } },
 					yAxis: {
-						format: (d) => chartConfig[d as keyof typeof chartConfig].label,
+						format: (d) => chartConfig[d as keyof typeof chartConfig]?.label ?? '',
 						tickLabelProps: {
 							svgProps: {
 								x: -16

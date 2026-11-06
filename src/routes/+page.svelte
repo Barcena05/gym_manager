@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as m from '$lib/paraglide/messages.js';
+	import { m } from '$lib/paraglide/messages';
 	import { onMount, tick } from 'svelte';
 	import { invoke } from '@tauri-apps/api/core';
 	import { toast } from 'svelte-sonner';
@@ -23,6 +23,8 @@
 	let cardIdInput = $state('');
 	let inputElement: any | null = $state(null); // For focusing
 	let isProcessingScan = $state(false);
+	let scannerEnabled = $state(true); // Toggle para entrada global de teclado (escáner)
+	let lastKeyTime = $state(0); // Para detectar entrada rápida de escáner
 
 	let first_name = $state('');
 	let last_name = $state('');
@@ -33,6 +35,12 @@
 	let recentEntries = $state<EntryLog[]>([]);
 	let isLoadingEntries = $state(true);
 	let activeTab = $state('membership');
+    let scannerButtonTitle = $derived(
+        scannerEnabled ? m['scanner.scanner_disable']() : m['scanner.scanner_enable']()
+    );
+
+	// Buffer para acumular caracteres de escáner (NETUM envía rápido + Enter al final)
+	let scanBuffer = '';
 
 	async function fetchRecentEntries() {
 		isLoadingEntries = true;
@@ -125,28 +133,91 @@
 		}
 	}
 
-	const handleGlobalKeyPress = (event: KeyboardEvent) => {
+	const handleGlobalKeyDown = async (event: KeyboardEvent) => {
+		// Si el escáner está desactivado, no interceptar nada
+		if (!scannerEnabled) return;
+
+		// Ignorar si el usuario está escribiendo en un input (excepto el del scanner)
+		const activeEl = document.activeElement as HTMLElement | null;
+		const isInput = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA' || activeEl?.isContentEditable;
+		if (isInput && activeEl !== inputElement) return;
+
+		// Detectar Enter (sufijo que envía el escáner NETUM al final de cada código)
 		if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.altKey) {
-			// Prevent default behavior
 			event.preventDefault();
 
-			// Submit the appropriate form based on active tab
-			if (activeTab === 'membership') {
-				handleSubmitScan();
-			} else if (activeTab === 'single') {
-				handleSingleEntry();
-			}
-			return;
-		}
-		if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
-			// Only allow numbers
-			if (!/^[0-9]$/.test(event.key)) {
+			// Si hay buffer del escáner, procesarlo; si no, usar el valor del input
+			const codeToScan = scanBuffer.trim() || cardIdInput.trim();
+			scanBuffer = ''; // Limpiar buffer tras usarlo
+
+			if (!codeToScan) {
+				toast.info(m['scanner.toast_empty_card_id']());
 				return;
 			}
 
-			cardIdInput += event.key;
-			inputElement?.focus();
+			if (activeTab === 'single') {
+				// Entrada única: rellenar el input y delegar
+				cardIdInput = codeToScan;
+				await handleSingleEntry();
+				return;
+			}
+
+			isProcessingScan = true;
+			scanResult = null;
+
+			// Temporalmente establecer el input para que process_scan lo use
+			const prevValue = cardIdInput;
+			cardIdInput = codeToScan;
+
+			try {
+				const result = await invoke<ScanProcessingResult>('process_scan', {
+					payload: { card_id: codeToScan }
+				});
+				scanResult = result;
+				showStatusDialog = true;
+				if (result.status === 'Allowed' || result.status.startsWith('Denied')) {
+					fetchRecentEntries();
+				}
+			} catch (e: any) {
+				console.log(e);
+				scanResult = {
+					status: 'Error',
+					message: m['scanner.error_unknown'](),
+					member_name: null,
+					card_id: codeToScan,
+					membership_type_name: null,
+					membership_end_date: null,
+					remaining_visits: null
+				};
+				showStatusDialog = true;
+			} finally {
+				isProcessingScan = false;
+				cardIdInput = prevValue;
+				await tick();
+				inputElement?.focus();
+			}
+			return;
+		}
+
+		// Permitir letras, números, guiones y guiones bajos (compatible con CODE128)
+		if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && /^[A-Za-z0-9\-_]$/.test(event.key)) {
 			event.preventDefault();
+
+			// Detección de escáner: si las teclas llegan muy rápido (< 100ms entre ellas)
+			const now = Date.now();
+			const isFastInput = lastKeyTime > 0 && (now - lastKeyTime) < 100;
+			lastKeyTime = now;
+
+			if (isFastInput) {
+				// Modo escáner: acumular en buffer
+				scanBuffer += event.key;
+			} else {
+				// Entrada manual lenta: usar el input directamente
+				scanBuffer = '';
+				cardIdInput += event.key;
+			}
+
+			inputElement?.focus();
 		}
 	};
 
@@ -159,8 +230,8 @@
 		fetchRecentEntries();
 		inputElement?.focus();
 
-		window.addEventListener('keypress', handleGlobalKeyPress);
-		return () => window.removeEventListener('keypress', handleGlobalKeyPress);
+		window.addEventListener('keydown', handleGlobalKeyDown);
+		return () => window.removeEventListener('keydown', handleGlobalKeyDown);
 	});
 
 	$effect(() => {
@@ -168,7 +239,7 @@
 			setTimeout(() => inputElement?.focus(), 100);
 		}
 	});
-	const locale = m.locale_code() || 'bs-BA';
+	const locale = $derived(m.locale_code() || 'bs-BA');
 
 	function formatDate(dateStr: string | null | undefined): string {
 		if (!dateStr) return 'N/A';
@@ -200,14 +271,29 @@
 				<Card.Content>
 					<form onsubmit={handleSubmitScan} class="flex flex-col items-center gap-4">
 						<Label class="text-lg font-semibold mb-2">{m['scanner.scan_card_title']()}</Label>
-						<Input
-							bind:ref={inputElement}
-							bind:value={cardIdInput}
-							type="text"
-							class="h-14 text-2xl! grow text-center"
-							disabled={isProcessingScan}
-							aria-label={m['scanner.scan_card_title']()}
-						/>
+						<div class="flex items-center gap-3 w-full max-w-md">
+							<Input
+								bind:ref={inputElement}
+								bind:value={cardIdInput}
+								type="text"
+								class="h-14 text-2xl! grow text-center"
+								disabled={isProcessingScan}
+								aria-label={m['scanner.scan_card_title']()}
+							/>
+							<Button
+								type="button"
+								variant={scannerEnabled ? 'default' : 'outline'}
+								size="icon"
+								onclick={() => (scannerEnabled = !scannerEnabled)}
+								title={scannerButtonTitle}
+							>
+								{#if scannerEnabled}
+									<svg class="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+								{:else}
+									<svg class="h-5 w-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+								{/if}
+							</Button>
+						</div>
 						<Separator />
 						<div class="flex items-center gap-2">
 							<p class="text-muted-foreground text-sm p-3">

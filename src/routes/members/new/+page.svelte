@@ -22,18 +22,20 @@
 	import Button from '$lib/components/ui/button/button.svelte';
 	import DateField from '$lib/components/date-field/date-field.svelte';
 
-	let newMember: null | Member = null;
-	let showMembershipPrompt = false;
-	const locale = m.locale_code() || 'bs-BA';
+	let newMember: null | Member = $state(null);
+	let showMembershipPrompt = $state(false);
+	let existingMember: Member | null = $state(null);
+	let checkingMember = $state(false);
+	const locale = $derived(m.locale_code() || 'bs-BA');
 
 	// --- Photo handling ---
-	let selectedPhoto: { bytes: Uint8Array; extension: string } | null = null;
-	let photoPreviewUrl: string | null = null;
+	let selectedPhoto: { bytes: Uint8Array; extension: string } | null = $state(null);
+	let photoPreviewUrl: string | null = $state(null);
 
 	// --- Camera functionality ---
-	let showCamera = false;
-	let videoElement: HTMLVideoElement | null = null;
-	let stream: MediaStream | null = null;
+	let showCamera = $state(false);
+	let videoElement: HTMLVideoElement | null = $state(null);
+	let stream: MediaStream | null = $state(null);
 
 	async function openCamera() {
 		try {
@@ -207,6 +209,26 @@
 		await goto('/members');
 	}
 
+	async function checkExistingMember(cardId: string) {
+		const trimmed = cardId.trim();
+		if (!trimmed || trimmed === existingMember?.card_id) return;
+
+		checkingMember = true;
+		existingMember = null;
+		try {
+			const result = await invoke<Member | null>('get_member_by_card_id', { card_id: trimmed });
+			existingMember = result ?? null;
+			if (existingMember) {
+				toast.info(m.error_card_already_exists({ cardId: trimmed }));
+			}
+		} catch (e) {
+			console.error('Error checking existing member:', e);
+			existingMember = null;
+		} finally {
+			checkingMember = false;
+		}
+	}
+
 	async function handleCancelPrompt() {
 		if (newMember) {
 			await goto(`/members/${newMember.id}`);
@@ -360,9 +382,28 @@
 										e.preventDefault();
 									}
 								}}
+								onblur={(e) => {
+									const target = e.target as HTMLInputElement;
+									checkExistingMember(target.value);
+								}}
 							/>
 							<Form.Description class="text-xs">{m.use_scanner_or_enter()}</Form.Description>
 							<Form.FieldErrors />
+							{#if existingMember}
+								<div class="p-3 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-sm">
+									{m.error_card_already_exists({ cardId: existingMember.card_id ?? '' })}{' '}
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onclick={() => goto(`/members/${existingMember!.id}`)}
+									>
+										{m.view_existing_member()}
+									</Button>
+								</div>
+							{:else if checkingMember}
+								<div class="text-xs text-muted-foreground">{m.checking_existing_member()}</div>
+							{/if}
 						{/snippet}
 					</Form.Control>
 				</Form.Field>

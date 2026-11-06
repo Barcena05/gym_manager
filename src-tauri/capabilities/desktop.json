@@ -1,5 +1,6 @@
 {
   "identifier": "desktop-capability",
+  "description": "Desktop-only permissions",
   "platforms": [
     "macOS",
     "windows",
@@ -9,6 +10,8 @@
     "main"
   ],
   "permissions": [
-    "updater:default"
+    "updater:default",
+    "core:webview:allow-set-webview-zoom",
+    "core:window:allow-start-dragging"
   ]
 }

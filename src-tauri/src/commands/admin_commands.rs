@@ -28,20 +28,22 @@ pub struct LoginResponse {
 
 #[tauri::command]
 pub async fn login(payload: LoginPayload, state: State<'_, AppState>) -> AppResult<LoginResponse> {
-    tracing::info!("Login attempt for user: {}", payload.username);
+    let username = payload.username.trim();
+    let password = payload.password.trim();
+    tracing::info!("Login attempt for user: {}", username);
 
     let user = sqlx::query_as!(
         User,
         "SELECT id as `id!`, username, role, password_hash, created_at, updated_at FROM users WHERE username = ?",
-        payload.username
+        username
     )
     .fetch_optional(&state.db_pool)
     .await?;
 
     match user {
-        Some(u) => match utils::verify_password(&payload.password, &u.password_hash) {
+        Some(u) => match utils::verify_password(password, &u.password_hash) {
             Ok(true) => {
-                tracing::info!("User '{}' logged in successfully.", payload.username);
+                tracing::info!("User '{}' logged in successfully.", username);
                 Ok(LoginResponse {
                     success: true,
                     message: "Login successful".to_string(),
@@ -50,7 +52,7 @@ pub async fn login(payload: LoginPayload, state: State<'_, AppState>) -> AppResu
                 })
             }
             Ok(false) => {
-                tracing::warn!("Invalid password for user '{}'.", payload.username);
+                tracing::warn!("Invalid password for user '{}'.", username);
                 Ok(LoginResponse {
                     success: false,
                     message: "Invalid username or password".to_string(),
@@ -61,14 +63,14 @@ pub async fn login(payload: LoginPayload, state: State<'_, AppState>) -> AppResu
             Err(e) => {
                 tracing::error!(
                     "Error verifying password for user '{}': {}",
-                    payload.username,
+                    username,
                     e
                 );
                 Err(e)
             }
         },
         None => {
-            tracing::warn!("User '{}' not found.", payload.username);
+            tracing::warn!("User '{}' not found.", username);
             Ok(LoginResponse {
                 success: false,
                 message: "Invalid username or password".to_string(),

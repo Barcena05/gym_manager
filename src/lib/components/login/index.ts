@@ -4,6 +4,6 @@ import { zod } from 'sveltekit-superforms/adapters';
 
 export const load = async () => {
 	return {
-		form: await superValidate(zod(formSchema))
+		form: await superValidate(zod(formSchema as any))
 	};
 };

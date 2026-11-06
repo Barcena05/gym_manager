@@ -49,7 +49,7 @@
 	};
 
 	const form = superForm(initialValues, {
-		validators: zodClient(membershipTypeSchema),
+		validators: zodClient(membershipTypeSchema as any),
 		syncFlashMessage: true,
 		dataType: 'json',
 		SPA: true,

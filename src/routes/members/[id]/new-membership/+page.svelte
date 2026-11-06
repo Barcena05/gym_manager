@@ -87,7 +87,7 @@
 	}
 
 	const form = superForm(initialValues, {
-		validators: zodClient(membershipSchema),
+		validators: zodClient(membershipSchema as any),
 		syncFlashMessage: true,
 		dataType: 'json',
 		SPA: true,
@@ -139,7 +139,7 @@
 			await goto('/members');
 		}
 	}
-	const locale = m.locale_code() || 'bs-BA';
+	const locale = $derived(m.locale_code() || 'bs-BA');
 
 	const df = new DateFormatter(locale, {
 		dateStyle: 'long'

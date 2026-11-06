@@ -82,6 +82,8 @@
 		"error_unknown": "Došlo je do nepoznate greške",
 		"recent": "Nedavni ulasci",
 		"no_recent": "Nema nedavnih ulazaka",
+		"scanner_enable": "Uključi skener tastature",
+		"scanner_disable": "Isključi skener tastature",
 		"status_allowed": "Ulazak dozvoljen",
 		"status_denied": "Ulazak odbijen",
 		"status_issue": "Greška",
@@ -339,7 +341,6 @@
 	"new_password": "Nova loznika",
 	"change": "Promijeni",
 	"password_changed_success": "Lozinka uspješno promijenjena!",
-	"password_changed_fail": "Neuspješno mijenjanje lozinke!",
 	"update": "Ažuriraj",
 	"backup_url_not_set": "URL za rezervnu kopiju nije podešen!",
 	"last_successfull_backup": "Posljednja uspješna rezervna kopija",
@@ -378,5 +379,15 @@
 	"check_again": "Provjeri ponovo",
 	"is_active": "Aktivan",
 	"failed_to_load_backups": "Neuspješno učitavanje rezervnih kopija",
-	"id_must_be_digits": "Broj kartice se mora sastojati od cifara"
+	"id_must_be_digits": "Broj kartice se mora sastojati od cifara",
+	"barcode": {
+		"title": "Barkod",
+		"description": "Barkod generisan iz broja kartice člana. Koristite ga za skeniranje člana pomoću čitača barkoda.",
+		"value_label": "Broj kartice / Vrijednost barkoda",
+		"regenerate": "Regeneriši",
+		"generation_failed": "Greška pri generisanju barkoda",
+		"print": "Štampaj barkod",
+		"print_all": "Štampaj sve barkodove",
+		"scan_instruction": "Skenirajte ovaj barkod pomoću čitača da registrujete ulaz člana"
+	}
 }

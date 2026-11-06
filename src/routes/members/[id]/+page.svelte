@@ -20,8 +20,9 @@
 	} from '$lib/utils';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
-	import { Pencil, Plus, Trash2, RefreshCcw } from 'lucide-svelte';
+	import { Pencil, Plus, Printer, Trash2, RefreshCcw } from 'lucide-svelte';
 	import { setHeader, setLoading } from '$lib/stores/state';
+	import BarcodeGenerator from '$lib/components/BarcodeGenerator.svelte';
 	import type { QueryResponse } from '$lib/models/table-state';
 	import { m } from '$lib/paraglide/messages';
 	import { appDataDir, join } from '@tauri-apps/api/path';
@@ -29,6 +30,8 @@
 	
 	// 👇 Importar el store del tipo de cambio
 	import { exchangeRate } from '$lib/stores/settings';
+	import { buildBarcodePdfBase64, isAndroid, savePdfAndOpen } from '$lib/barcode-pdf';
+	import { printElementById } from '$lib/print';
 
 	let isLoadingHistory = $state(true);
 	let error: string | null = $state(null);
@@ -37,6 +40,7 @@
 	let data: MemberWithMembership | null = $state(null);
 	let photoUrl: string | null = $state(null);
 	let showPhoto = $state(false);
+	let printingBarcode = $state(false);
 	
 	// 👇 Tipo de cambio actual
 	let currentRate = $state(660);
@@ -66,6 +70,31 @@
 		totalPages: 1,
 		totalItems: 0
 	});
+
+	async function printBarcodeLabel() {
+		if (!data?.card_id) return;
+
+		if (!isAndroid()) {
+			printElementById('barcode-print-area');
+			return;
+		}
+
+		printingBarcode = true;
+		try {
+			const base64 = await buildBarcodePdfBase64([
+				{
+					value: data.card_id,
+					name: `${data.first_name} ${data.last_name}`.trim()
+				}
+			]);
+			await savePdfAndOpen(base64);
+		} catch (e) {
+			console.error('Error generando/abriendo el PDF:', e);
+			toast.error(`No se pudo generar el PDF: ${e instanceof Error ? e.message : String(e)}`);
+		} finally {
+			printingBarcode = false;
+		}
+	}
 
 	async function fetchMemberWithMembership() {
 		error = null;
@@ -170,7 +199,7 @@
 		if (memberId) await goto(`/members/${memberId}/new-membership`);
 	}
 
-	const locale = m.locale_code() || 'bs-BA';
+	const locale = $derived(m.locale_code() || 'bs-BA');
 
 	const df = new DateFormatter(locale, {
 		dateStyle: 'long',
@@ -196,7 +225,7 @@
 			<!-- Columna izquierda: Datos del miembro (sin cambios) -->
 			<Card.Root class="w-full">
 				<Card.Header>
-					<Card.Title class="text-2xl flex justify-between"
+					<Card.Title class="text-xl sm:text-2xl flex flex-wrap items-center justify-between gap-2"
 						>{m['common.member']()}
 
 						<div class="space-x-2">
@@ -290,6 +319,34 @@
 							<Label class="font-semibold">{m.card_number()}</Label>
 							<Input readonly type="text" value={data?.card_id} />
 						</div>
+
+						<!-- Código de barras del miembro -->
+						{#if data?.card_id}
+							<div class="w-full space-y-2">
+								<Label class="font-semibold">{m['barcode.title']()}</Label>
+								<BarcodeGenerator
+									value={data.card_id}
+									name={`${data.first_name} ${data.last_name}`.trim()}
+									readonly
+									displayValue={false}
+									showPrintButton={false}
+								/>
+								<p class="text-xs text-muted-foreground text-center">
+									{m['barcode.scan_instruction']()}
+								</p>
+								<div class="flex justify-center">
+									<Button
+										variant="outline"
+										size="sm"
+										onclick={printBarcodeLabel}
+										disabled={printingBarcode}
+									>
+										<Printer class="h-4 w-4 mr-2" />
+										{printingBarcode ? 'Generando PDF...' : m['barcode.print']()}
+									</Button>
+								</div>
+							</div>
+						{/if}
 					</div>
 				</Card.Content>
 			</Card.Root>
@@ -297,7 +354,7 @@
 			<!-- Columna derecha: Membresía actual -->
 			<Card.Root class="w-full">
 				<Card.Header>
-					<Card.Title class="text-2xl flex justify-between"
+					<Card.Title class="text-xl sm:text-2xl flex flex-wrap items-center justify-between gap-2"
 						>{m['common.membership']()}
 
 						{#if data?.membership_id}
@@ -331,17 +388,17 @@
 								<Label class="font-semibold">{m.membership_type()}</Label>
 								<Input type="text" readonly value={data?.membership_type_name ?? ''} />
 							</div>
-							<div class="flex flex-col md:flex-row gap-4 w-full justify-between">
-								<div class="w-1/2 space-y-2">
+							<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+								<div class="w-full space-y-2">
 									<Label class="font-semibold">{m.duration_days()}</Label>
 									<Input type="text" readonly value={data?.membership_type_duration_days ?? ''} />
 								</div>
-								<div class="w-1/2 space-y-2">
+								<div class="w-full space-y-2">
 									<Label class="font-semibold">{m['common.visit_limit']()}</Label>
 									<Input type="text" readonly value={data?.membership_type_visit_limit ?? ''} />
 								</div>
 
-								<div class="w-1/2 space-y-2">
+								<div class="w-full space-y-2">
 									<Label class="font-semibold">{m.enter_by_hours()}</Label>
 									<div class="relative flex">
 										<Input
@@ -389,8 +446,8 @@
 
 							<Separator />
 
-							<div class="flex flex-col md:flex-row gap-4 w-full justify-between pt-2">
-								<div class="w-1/2 space-y-2">
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full pt-2">
+								<div class="w-full space-y-2">
 									<Label class="font-semibold">{m.start_date()}</Label>
 									<Input
 										type="text"
@@ -401,7 +458,7 @@
 									/>
 								</div>
 
-								<div class="w-1/2 space-y-2">
+								<div class="w-full space-y-2">
 									<Label class="font-semibold">{m.end_date()}</Label>
 									<Input
 										type="text"
@@ -413,8 +470,8 @@
 								</div>
 							</div>
 
-							<div class="flex flex-col md:flex-row gap-4 w-full justify-between">
-								<div class="w-3/4 space-y-2">
+							<div class="grid grid-cols-1 sm:grid-cols-4 gap-4 w-full">
+								<div class="w-full sm:col-span-3 space-y-2">
 									<Label class="font-semibold">{m['common.status']()}</Label>
 									<Input
 										type="text"
@@ -424,7 +481,7 @@
 									/>
 								</div>
 
-								<div class="w-1/4 space-y-2">
+								<div class="w-full sm:col-span-1 space-y-2">
 									<Label class="font-semibold">{m.remaining_visits()}</Label>
 									<Input type="text" readonly value={data?.membership_remaining_visits} />
 								</div>

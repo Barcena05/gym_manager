@@ -12,6 +12,7 @@
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import { headerState, loadingState, resetHeader } from '$lib/stores/state';
+	import { APP_VERSION } from '$lib/version';
 	import ArrowLeft from 'lucide-svelte/icons/arrow-left';
 
 	import '../app.css';
@@ -42,6 +43,7 @@
 	let appSettings = $state<AppSettings | null>(null);
 	let logoUrl = $state<string | null>(null);
 	let mounted = $state(false);
+	let mobileMenuOpen = $state(false);
 	let gymName = $state('Gym');
 	let status = $state<string | null>(null);
 
@@ -52,14 +54,33 @@
 		}
 	});
 	
-	$effect(async () => {
-		if (appSettings?.logo_path) {
-			const dataDir = await appDataDir();
-			const fullPath = await join(dataDir, appSettings.logo_path);
-			logoUrl = convertFileSrc(fullPath);
-		} else {
+	$effect(() => {
+		const logoPath = appSettings?.logo_path;
+		let cancelled = false;
+
+		if (!logoPath) {
 			logoUrl = null;
+			return;
 		}
+
+		(async () => {
+			try {
+				const dataDir = await appDataDir();
+				const fullPath = await join(dataDir, logoPath);
+				if (!cancelled) {
+					logoUrl = convertFileSrc(fullPath);
+				}
+			} catch (e) {
+				console.error('Failed to load logo:', e);
+				if (!cancelled) {
+					logoUrl = null;
+				}
+			}
+		})();
+
+		return () => {
+			cancelled = true;
+		};
 	});
 	function handleBack() {
 		if ($headerState.backPath) {
@@ -67,6 +88,10 @@
 		} else {
 			window.history.back();
 		}
+	}
+
+	function closeMobileMenu() {
+		mobileMenuOpen = false;
 	}
 
 	
@@ -116,43 +141,51 @@
 	}
 
 	onMount(() => {
-		let unlisten: () => void;
-		let unlistenStatus: () => void;
+		let unlisten: (() => void) | undefined;
+		let unlistenStatus: (() => void) | undefined;
+
 		async function init() {
 			await loadAndApplySettings();
+			mounted = true;
 
-			unlisten = await listen<AppSettings>('settings_changed', (event) => {
-			toast.info(m['main.toast_settings_updated']());
-			
-			if (event.payload.language && isLocale(event.payload.language)) {
-				setLocale(event.payload.language);
+			try {
+				unlisten = await listen<AppSettings>('settings_changed', (event) => {
+					toast.info(m['main.toast_settings_updated']());
+
+					if (event.payload.language && isLocale(event.payload.language)) {
+						setLocale(event.payload.language);
+					}
+					if (event.payload.theme) {
+						setMode(event.payload.theme as 'light' | 'dark' | 'system');
+					}
+					if (event.payload.gym_name) {
+						gymName = event.payload.gym_name;
+					}
+					if (event.payload.usd_to_cup_rate) {
+						exchangeRate.set(event.payload.usd_to_cup_rate);
+					}
+				});
+			} catch (e) {
+				console.error('Failed to listen for settings changes:', e);
 			}
-			if (event.payload.theme) {
-				setMode(event.payload.theme as 'light' | 'dark' | 'system');
-			}
-			if (event.payload.gym_name) {
-				gymName = event.payload.gym_name;
-			}
-			
-			// 👇 AGREGAR ESTA LÍNEA
-			if (event.payload.usd_to_cup_rate) {
-				exchangeRate.set(event.payload.usd_to_cup_rate);
-			}
-		});
-			mounted = true;
 		}
+
 		async function listenForStatus() {
-			unlistenStatus = await listen<string>('status', (event) => {
-				console.log('Status change event received', event.payload);
-				if (event.payload) {
-					status = String(event.payload);
-					setTimeout(() => {
-						status = null;
-					}, 7000);
-				}
-			});
-			mounted = true;
+			try {
+				unlistenStatus = await listen<string>('status', (event) => {
+					console.log('Status change event received', event.payload);
+					if (event.payload) {
+						status = String(event.payload);
+						setTimeout(() => {
+							status = null;
+						}, 7000);
+					}
+				});
+			} catch (e) {
+				console.error('Failed to listen for status changes:', e);
+			}
 		}
+
 		init();
 		listenForStatus();
 
@@ -271,17 +304,17 @@
 		</div>
 		<div class="flex flex-col h-screen mr-1.5">
 			<header
-				class="flex bg-background rounded-t-2xl mt-1.5 h-14 items-center gap-4 border shadow px-4 lg:h-[60px] lg:px-6"
+				class="flex bg-background rounded-t-2xl mt-1.5 h-14 items-center gap-2 border shadow px-2 sm:gap-4 sm:px-4 lg:h-[60px] lg:px-6"
 			>
-				<Sheet.Root>
+				<Sheet.Root bind:open={mobileMenuOpen}>
 					<Sheet.Trigger>
 						<Button variant="outline" size="icon" class="shrink-0 md:hidden">
 							<Menu class="h-5 w-5" />
 							<span class="sr-only">{m['main.menu_toggle']()}</span>
 						</Button>
 					</Sheet.Trigger>
-					<Sheet.Content side="left" class="flex flex-col">
-						<nav class="grid gap-2 text-lg font-medium">
+					<Sheet.Content side="left" class="flex w-[260px] max-w-[80vw] flex-col">
+						<nav class="grid gap-2 text-lg font-medium" onclick={closeMobileMenu}>
 							<a href="/" class="flex items-center gap-2 font-semibold">
 								{#if logoUrl}
 									<img src={logoUrl} class="h-8 w-auto" alt="Logo" />
@@ -321,7 +354,7 @@
 							{#if $auth.role === 'admin'}
 								<a
 									href="/entry-log"
-									class="{page.url.pathname.startsWith('/members')
+									class="{page.url.pathname.startsWith('/entry-log')
 										? 'bg-background/60 border shadow-sm text-foreground'
 										: ''} hover:text-foreground mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2"
 								>
@@ -359,6 +392,7 @@
 										size="sm"
 										class="w-full"
 										onclick={() => {
+											closeMobileMenu();
 											goto('/members/new');
 										}}>Add</Button
 									>
@@ -367,7 +401,7 @@
 						</div>
 					</Sheet.Content>
 				</Sheet.Root>
-				<div class="flex flex-1 items-center gap-6">
+				<div class="flex min-w-0 flex-1 items-center gap-2 sm:gap-6">
 					{#if $headerState.showBackButton}
 						<Button variant="secondary" size="icon" onclick={handleBack} aria-label="Go back">
 							<ArrowLeft class="h-5 w-5" />
@@ -375,12 +409,15 @@
 					{:else}
 						<div class="w-[32px] h-5"></div>
 					{/if}
-					<h1 class="text-lg font-semibold md:text-xl">{$headerState.title}</h1>
+					<h1 class="truncate text-base font-semibold sm:text-lg md:text-xl">{$headerState.title}</h1>
+					<span class="shrink-0 rounded border px-1 py-0.5 text-[10px] leading-none text-muted-foreground">
+						v{APP_VERSION}
+					</span>
 				</div>
 
 				{#if status}
 					<div
-						class="text-sm px-3 py-1 bg-accent text-card-foreground border rounded transition-all animate-pulse"
+						class="hidden sm:block text-sm px-3 py-1 bg-accent text-card-foreground border rounded transition-all animate-pulse"
 					>
 						{translateAppStatus(status)}
 					</div>
@@ -409,7 +446,7 @@
 				</DropdownMenu.Root>
 			</header>
 			<main
-				class="flex flex-1 flex-col gap-4 mb-1.5 rounded-b-2xl border-x shadow p-6 lg:gap-6 lg:p-10 overflow-y-auto bg-background"
+				class="flex flex-1 flex-col gap-4 mb-1.5 rounded-b-2xl border-x shadow p-3 sm:p-6 lg:gap-6 lg:p-10 overflow-y-auto bg-background"
 			>
 				{@render children?.()}
 			</main>

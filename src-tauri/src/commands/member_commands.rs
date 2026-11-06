@@ -410,6 +410,37 @@ pub async fn get_member_by_id(
 
     Ok(member)
 }
+
+#[tauri::command]
+pub async fn get_member_by_card_id(
+    card_id: String,
+    state: State<'_, AppState>,
+) -> AppResult<Option<Member>> {
+    tracing::debug!("Fetching member by card_id: {}", card_id);
+
+    let trimmed = card_id.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    let member = sqlx::query_as::<_, Member>(
+        r#"
+        SELECT id, card_id, short_card_id, first_name, last_name, email, phone, date_of_birth, photo_path, created_at, updated_at, is_deleted
+        FROM members
+        WHERE (card_id = ?1 OR short_card_id = ?1) AND is_deleted = FALSE
+        "#,
+    )
+    .bind(trimmed)
+    .fetch_optional(&state.db_pool)
+    .await?;
+
+    match &member {
+        Some(m) => tracing::debug!("Found member by card_id {}: {} {}", trimmed, m.first_name, m.last_name),
+        None => tracing::debug!("No member found with card_id: {}", trimmed),
+    }
+
+    Ok(member)
+}
 #[tauri::command]
 pub async fn delete_member(id: i64, state: State<'_, AppState>) -> AppResult<()> {
     tracing::info!("Attempting to delete member with id: {}", id);
@@ -520,7 +551,6 @@ pub async fn update_member(
     }
 }
 
-use std::path::PathBuf;
 use tauri::AppHandle;
 use tokio::fs;
 

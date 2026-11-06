@@ -5,7 +5,7 @@
     import { auth } from '$lib/stores/auth';
     import { superForm } from 'sveltekit-superforms';
     import { zodClient } from 'sveltekit-superforms/adapters';
-    import { z } from 'zod';
+    import { formSchema } from '$lib/schemas/login_schema';
     import { toast } from 'svelte-sonner';
     import { m } from '$lib/paraglide/messages';
     import { setLoading } from '$lib/stores/state';
@@ -29,14 +29,9 @@
         }
     });
 
-    const formSchema = z.object({
-        username: z.string().min(2).max(20),
-        password: z.string().min(5).max(20)
-    });
-
     const defaultValues = { username: '', password: '' };
     const form = superForm(defaultValues, {
-        validators: zodClient(formSchema),
+        validators: zodClient(formSchema as any),
         dataType: 'json',
         SPA: true,
         taintedMessage: null
@@ -48,7 +43,10 @@
         const result = await form.validateForm();
         if (result.valid) {
             auth.clearError();
-            const loginSuccess = await auth.login(result.data.username, result.data.password);
+            const loginSuccess = await auth.login(
+                result.data.username.trim(),
+                result.data.password.trim()
+            );
             if (loginSuccess) {
                 toast.success(m['login.toast_success']());
             } else {

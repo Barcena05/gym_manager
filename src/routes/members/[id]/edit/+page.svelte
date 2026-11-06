@@ -24,7 +24,7 @@
 
 	let error: string | null = $state(null);
 	const memberId = $derived(page.params.id);
-	const locale = m.locale_code() || 'bs-BA';
+	const locale = $derived(m.locale_code() || 'bs-BA');
 	
 	let existingPhotoUrl = $state<string | null>(null);
 
@@ -36,9 +36,9 @@
 	let photoPreviewUrl = $state<string | null>(null);
 	
 	// Camera functionality
-	let showCamera = false;
-	let videoElement: HTMLVideoElement | null = null;
-	let stream: MediaStream | null = null;
+	let showCamera = $state(false);
+	let videoElement: HTMLVideoElement | null = $state(null);
+	let stream: MediaStream | null = $state(null);
 
 	async function openCamera() {
 		try {

@@ -18,6 +18,8 @@ function createAuthStore() {
 	return {
 		subscribe,
 		login: async (username: string, password: string) => {
+			username = username.trim();
+			password = password.trim();
 			const { invoke } = await import('@tauri-apps/api/core');
 			try {
 				const response: LoginResponse = await invoke('login', {
@@ -41,7 +43,7 @@ function createAuthStore() {
 				set({
 					isAuthenticated: false,
 					username: null,
-					error: e.message || 'An unexpected error occurred.',
+					error: e instanceof Error ? e.message : 'An unexpected error occurred.',
 					role: null
 				});
 				return false;

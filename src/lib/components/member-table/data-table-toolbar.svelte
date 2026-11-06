@@ -9,6 +9,8 @@
 	import { invoke } from '@tauri-apps/api/core';
 	import type { MembershipType } from '$lib/models/membership_type.js';
 	import { PlusCircle } from 'lucide-svelte';
+	import BarcodeIcon from 'lucide-svelte/icons/scan-barcode';
+	import { goto } from '$app/navigation';
 	import { m } from '$lib/paraglide/messages.js';
 
 	let {
@@ -69,6 +71,10 @@
 			</Button>
 		{/if}
 	</div>
+	<Button data-testid="print-barcodes" onclick={() => goto('/members/barcodes')} variant="outline" class="h-8 px-4 ml-3 text-xs lg:px-4">
+		<BarcodeIcon class="mr-2 h-4 w-4" />
+		{m['barcode.print_all']()}
+	</Button>
 	<Button onclick={onAddMember} class="h-8 px-4 ml-3 text-xs lg:px-4">
 		<PlusCircle class="mr-2 h-4 w-4" />
 		{m.add()}</Button

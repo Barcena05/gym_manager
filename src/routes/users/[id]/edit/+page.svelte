@@ -42,7 +42,7 @@
 	];
 
 	const form = superForm(initialValues, {
-		validators: zodClient(updateUserSchema),
+		validators: zodClient(updateUserSchema as any),
 		syncFlashMessage: true,
 		dataType: 'json',
 		SPA: true,
@@ -54,7 +54,7 @@
 	});
 
 	const form2 = superForm(passInitialValues, {
-		validators: zodClient(changePasswordSchema),
+		validators: zodClient(changePasswordSchema as any),
 		syncFlashMessage: true,
 		dataType: 'json',
 		SPA: true,

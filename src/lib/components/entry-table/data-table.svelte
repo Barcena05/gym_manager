@@ -68,7 +68,7 @@
 	}
 
 	let {
-		serverData = [{ data: [], total: 0, page: 1, per_page: 10, total_pages: 1 }],
+		serverData = { data: [], total: 0, page: 1, per_page: 10, total_pages: 1 },
 		loading = false,
 		onPageChange,
 		onPageSizeChange,
@@ -355,7 +355,7 @@
 	export function clearSelection() {
 		rowSelection = {};
 	}
-	const locale = m.locale_code() || 'bs-BA';
+	const locale = $derived(m.locale_code() || 'bs-BA');
 
 	function formatDate(dateStr: string | null | undefined): string {
 		if (!dateStr) return 'N/A';

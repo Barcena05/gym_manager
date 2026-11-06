@@ -34,7 +34,7 @@
 	import { exchangeRate } from '$lib/stores/settings';
 
 	let error: string | null = $state(null);
-	const locale = m.locale_code() || 'bs-BA';
+	const locale = $derived(m.locale_code() || 'bs-BA');
 	const memberId = $derived(page.params.id);
 	const membershipId = $derived(page.url.searchParams.get('membershipId'));
 
@@ -107,7 +107,7 @@
 	};
 
 	const form = superForm(initialValues, {
-		validators: zodClient(membershipSchema),
+		validators: zodClient(membershipSchema as any),
 		syncFlashMessage: true,
 		dataType: 'json',
 		SPA: true,

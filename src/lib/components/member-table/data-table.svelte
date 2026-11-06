@@ -65,7 +65,7 @@
 	}
 
 	let {
-		serverData = [{ data: [], total: 0, page: 1, per_page: 10, total_pages: 1 }],
+		serverData = { data: [], total: 0, page: 1, per_page: 10, total_pages: 1 },
 		loading = false,
 		onPageChange,
 		onPageSizeChange,

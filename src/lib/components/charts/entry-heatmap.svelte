@@ -85,7 +85,7 @@
 
 		const result = [];
 		for (let hour = minHour; hour <= maxHour; hour++) {
-			const hourData = { hour };
+			const hourData: { hour: number; [key: string]: number } = { hour };
 			groupedData.forEach((day) => {
 				const entry = day.data.find((d) => d.hour === hour);
 				hourData[day.dayName.toLowerCase()] = entry ? entry.entries : 0;

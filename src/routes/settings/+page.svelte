@@ -32,7 +32,7 @@
 		{ id: 'es', name: 'Español' }
 	];
 
-	const locale = m.locale_code() || 'bs-BA';
+	const locale = $derived(m.locale_code() || 'bs-BA');
 	let isBackupDialogOpen = $state(false);
 	let isRestoreDialogOpen = $state(false);
 
@@ -48,7 +48,8 @@
 		timezone: 'UTC',
 		theme: 'light',
 		backup_url: '',
-		backup_period_hours: 0
+		backup_period_hours: 0,
+		usd_to_cup_rate: 600
 	};
 	let logoInput: HTMLInputElement;
 	let logoPreviewUrl = $state<string | null>(null);
@@ -166,7 +167,7 @@
 		}
 	}
 	const form = superForm(initialValues, {
-		validators: zodClient(settingsSchema),
+		validators: zodClient(settingsSchema as any),
 		syncFlashMessage: true,
 		dataType: 'json',
 		SPA: true,
@@ -479,8 +480,8 @@
 						value={backups ? backups[0]?.label || m.no_backup_found() : m.no_backup_found()}
 					/>
 
-					<div class="flex flex-col md:flex-row gap-4 w-full justify-between items-center pt-2">
-						<div class="w-1/2 space-y-2">
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full items-end pt-2">
+						<div class="w-full space-y-2">
 							<Label class="font-semibold">{m.backups()}</Label>
 							<Select.Root type="single" bind:value={selectedBackup}>
 								<Select.Trigger>
@@ -499,7 +500,7 @@
 								</Select.Content>
 							</Select.Root>
 						</div>
-						<div class="w-1/2 space-y-2">
+						<div class="w-full space-y-2">
 							<AlertDialog.Root bind:open={isBackupDialogOpen}>
 								<AlertDialog.Trigger class="w-full" type="button">
 									<Button class="w-full" variant="secondary">{m.trigger_backup()}</Button>

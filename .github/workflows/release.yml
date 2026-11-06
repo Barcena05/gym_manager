@@ -18,16 +18,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # - platform: 'macos-latest'
-          #   args: '--target aarch64-apple-darwin'
-          # Uncomment for Intel builds
-          #   - platform: 'macos-latest' # for Intel based macs.
-          #     args: '--target x86_64-apple-darwin'
           - platform: 'ubuntu-24.04'
             args: ''
           - platform: 'windows-latest'
             args: ''
-
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -38,12 +32,10 @@ jobs:
           bun-version: latest
       - run: bun i
 
-      - name: install Rust stable
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      - name: install dependencies (ubuntu only)
+      - name: Install dependencies (Ubuntu only)
         if: matrix.platform == 'ubuntu-24.04'
         run: |
           sudo apt-get update
@@ -56,9 +48,59 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
+          tagName: v__VERSION__
           releaseName: 'v__VERSION__'
           releaseBody: 'Release of v__VERSION__'
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  publish-android:
+    needs: publish-tauri
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun i
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "ndk;27.0.12077973"
+          echo "NDK_HOME=${ANDROID_HOME}/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      - name: Install Rust Android target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Build Android APK
+        id: android-build
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: bash scripts/build-android.sh
+
+      - name: Upload APK to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.android-build.outputs.version }}
+          draft: true
+          files: ${{ steps.android-build.outputs.apk }}
