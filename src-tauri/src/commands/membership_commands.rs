@@ -52,6 +52,8 @@ pub async fn get_all_memberships_for_member(
             mt.id as membership_type_id,
             mt.name as membership_type_name,
             mt.enter_by as membership_type_enter_by,
+            mt.visit_limit as membership_type_visit_limit,
+            mt.daily_visit_limit as membership_type_daily_visit_limit,
             ms.id as membership_id,
             ms.start_date as membership_start_date,
             ms.end_date as membership_end_date,
@@ -121,6 +123,8 @@ pub async fn get_membership_by_id(
             mt.id as membership_type_id,
             mt.name as membership_type_name,
             mt.enter_by as membership_type_enter_by,
+            mt.visit_limit as membership_type_visit_limit,
+            mt.daily_visit_limit as membership_type_daily_visit_limit,
             ms.id as membership_id,
             ms.start_date as membership_start_date,
             ms.end_date as membership_end_date,
@@ -329,6 +333,7 @@ pub async fn save_membership(
 
 #[tauri::command]
 pub async fn delete_membership(id: i64, state: State<'_, AppState>) -> AppResult<()> {
+    state.require_admin().await?;
     tracing::info!("Deleting membership with ID: {}", id);
 
     let now = Utc::now().naive_utc();

@@ -118,6 +118,7 @@ impl ErrorCodes {
     pub const BACKUP_URL_NOT_SET: &'static str = "error.backup_url_not_set";
     pub const INVALID_TIMEZONE: &'static str = "error.invalid_timezone";
     pub const INVALID_BACKUP_URL: &'static str = "error.invalid_backup_url";
+    pub const ADMIN_REQUIRED: &'static str = "error.admin_required";
 }
 
 impl std::error::Error for TranslatableError {}

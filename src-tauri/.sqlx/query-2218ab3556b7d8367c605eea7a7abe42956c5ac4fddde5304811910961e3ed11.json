@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "\n        SELECT id as 'id!', name, duration_days, visit_limit, price, enter_by, description, created_at, updated_at, is_deleted, is_active\n        FROM membership_types\n        WHERE is_deleted = FALSE\n        ORDER BY name ASC\n        ",
+  "query": "\n                SELECT id, name, duration_days, visit_limit, daily_visit_limit, price, enter_by, description, created_at, updated_at, is_deleted, is_active\n                FROM membership_types\n                WHERE id = ?\n                ",
   "describe": {
     "columns": [
       {
-        "name": "id!",
+        "name": "id",
         "ordinal": 0,
         "type_info": "Int64"
       },
@@ -24,49 +24,55 @@
         "type_info": "Int64"
       },
       {
-        "name": "price",
+        "name": "daily_visit_limit",
         "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "price",
+        "ordinal": 5,
         "type_info": "Float"
       },
       {
         "name": "enter_by",
-        "ordinal": 5,
+        "ordinal": 6,
         "type_info": "Int64"
       },
       {
         "name": "description",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Text"
       },
       {
         "name": "created_at",
-        "ordinal": 7,
-        "type_info": "Datetime"
-      },
-      {
-        "name": "updated_at",
         "ordinal": 8,
         "type_info": "Datetime"
       },
       {
-        "name": "is_deleted",
+        "name": "updated_at",
         "ordinal": 9,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "is_deleted",
+        "ordinal": 10,
         "type_info": "Bool"
       },
       {
         "name": "is_active",
-        "ordinal": 10,
+        "ordinal": 11,
         "type_info": "Bool"
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
-      true,
+      false,
       false,
       true,
       true,
+      false,
       false,
       true,
       true,
@@ -76,5 +82,5 @@
       false
     ]
   },
-  "hash": "6ba675d8b85d84be2db9612da373c6cb43cdd39c46764230928cf9ff7e2c7281"
+  "hash": "2218ab3556b7d8367c605eea7a7abe42956c5ac4fddde5304811910961e3ed11"
 }

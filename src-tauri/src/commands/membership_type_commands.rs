@@ -17,7 +17,7 @@ pub async fn get_membership_type_by_id(
     let membership_type = sqlx::query_as!(
         MembershipType,
         r#"
-        SELECT id, name, duration_days, visit_limit, price, enter_by, description, created_at, updated_at, is_deleted, is_active
+        SELECT id, name, duration_days, visit_limit, daily_visit_limit, price, enter_by, description, created_at, updated_at, is_deleted, is_active
         FROM membership_types
         WHERE id = ? AND is_deleted = FALSE
         "#,
@@ -35,6 +35,7 @@ pub async fn update_membership_type(
     payload: NewMembershipTypePayload,
     state: State<'_, AppState>,
 ) -> AppResult<MembershipType> {
+    state.require_admin().await?;
     tracing::info!("Updating membership type with id: {}", id);
 
     if payload.name.trim().is_empty() {
@@ -62,9 +63,12 @@ pub async fn update_membership_type(
                 "Visit limit must be positive or 0 if provided.".to_string(),
             ));
         }
-        if limit > payload.duration_days.unwrap_or(0) {
+    }
+
+    if let Some(daily_limit) = payload.daily_visit_limit {
+        if daily_limit < 0 {
             return Err(AppError::Validation(
-                "Visit limit cannot exceed duration days.".to_string(),
+                "Daily visit limit must be 0 or positive if provided.".to_string(),
             ));
         }
     }
@@ -79,16 +83,18 @@ pub async fn update_membership_type(
 
     let now = chrono::Utc::now().naive_utc();
     let is_active = payload.is_active.unwrap_or(true);
+    let daily_visit_limit = payload.daily_visit_limit.unwrap_or(0);
 
     let result = sqlx::query!(
         r#"
         UPDATE membership_types
-        SET name = ?1, duration_days = ?2, visit_limit = ?3, enter_by = ?4, price = ?5, description = ?6, updated_at = ?7, is_active = ?8
-        WHERE id = ?9 AND is_deleted = FALSE
+        SET name = ?1, duration_days = ?2, visit_limit = ?3, daily_visit_limit = ?4, enter_by = ?5, price = ?6, description = ?7, updated_at = ?8, is_active = ?9
+        WHERE id = ?10 AND is_deleted = FALSE
         "#,
         payload.name,
         payload.duration_days,
         payload.visit_limit,
+        daily_visit_limit,
         payload.enter_by,
         payload.price,
         payload.description,
@@ -113,7 +119,7 @@ pub async fn update_membership_type(
             let updated_type = sqlx::query_as!(
                 MembershipType,
                 r#"
-                SELECT id, name, duration_days, visit_limit, price, enter_by, description, created_at, updated_at, is_deleted, is_active
+                SELECT id, name, duration_days, visit_limit, daily_visit_limit, price, enter_by, description, created_at, updated_at, is_deleted, is_active
                 FROM membership_types
                 WHERE id = ?
                 "#,
@@ -153,6 +159,7 @@ pub async fn add_membership_type(
     payload: NewMembershipTypePayload,
     state: State<'_, AppState>,
 ) -> AppResult<MembershipType> {
+    state.require_admin().await?;
     tracing::info!("Creating new membership type: {}", &payload.name);
 
     if payload.name.trim().is_empty() {
@@ -181,9 +188,12 @@ pub async fn add_membership_type(
             ));
         }
 
-        if limit > payload.duration_days.unwrap_or(0) {
+    }
+
+    if let Some(daily_limit) = payload.daily_visit_limit {
+        if daily_limit < 0 {
             return Err(AppError::Validation(
-                "Visit limit cannot exceed duration days.".to_string(),
+                "Daily visit limit must be 0 or positive if provided.".to_string(),
             ));
         }
     }
@@ -198,15 +208,17 @@ pub async fn add_membership_type(
 
     let now = chrono::Utc::now().naive_utc();
     let is_active = payload.is_active.unwrap_or(true);
+    let daily_visit_limit = payload.daily_visit_limit.unwrap_or(0);
 
     let result = sqlx::query!(
             r#"
-            INSERT INTO membership_types (name, duration_days, visit_limit, enter_by, price, description, created_at, updated_at, is_deleted, is_active)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, FALSE, ?8)
+            INSERT INTO membership_types (name, duration_days, visit_limit, daily_visit_limit, enter_by, price, description, created_at, updated_at, is_deleted, is_active)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8, FALSE, ?9)
             "#,
             payload.name,
             payload.duration_days,
             payload.visit_limit,
+            daily_visit_limit,
             payload.enter_by,
             payload.price,
             payload.description,
@@ -229,7 +241,7 @@ pub async fn add_membership_type(
             let new_type = sqlx::query_as!(
                     MembershipType,
                     r#"
-                    SELECT id, name, duration_days, visit_limit, price, enter_by, description, created_at, updated_at, is_deleted, is_active
+                    SELECT id, name, duration_days, visit_limit, daily_visit_limit, price, enter_by, description, created_at, updated_at, is_deleted, is_active
                     FROM membership_types
                     WHERE id = ?
                     "#,
@@ -270,7 +282,7 @@ pub async fn get_all_membership_types(
     let types = sqlx::query_as!(
         MembershipType,
         r#"
-        SELECT id as 'id!', name, duration_days, visit_limit, price, enter_by, description, created_at, updated_at, is_deleted, is_active
+        SELECT id as 'id!', name, duration_days, visit_limit, daily_visit_limit, price, enter_by, description, created_at, updated_at, is_deleted, is_active
         FROM membership_types
         WHERE is_deleted = FALSE
         ORDER BY name ASC
@@ -284,6 +296,7 @@ pub async fn get_all_membership_types(
 
 #[tauri::command]
 pub async fn delete_membership_type(id: i64, state: State<'_, AppState>) -> AppResult<()> {
+    state.require_admin().await?;
     tracing::info!(
         "Attempting to (soft) delete membership type with id: {}",
         id

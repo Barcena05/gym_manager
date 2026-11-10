@@ -63,8 +63,8 @@ FROM
     entry_logs
 WHERE
     status IN ('allowed', 'allowed_single')
-    AND entry_time >= ?1
-    AND entry_time <= ?2
+    AND local_date >= ?1
+    AND local_date <= ?2
 GROUP BY
     day_of_week,
     hour_of_day
@@ -125,6 +125,7 @@ ORDER BY
 pub async fn get_membership_type_distribution(
     state: State<'_, AppState>,
 ) -> AppResult<Vec<MembershipTypeDistributionItem>> {
+    state.require_admin().await?;
     let rows =
         sqlx::query_as::<_, MembershipTypeDistributionItem>(MEMBERSHIP_TYPE_DISTRIBUTION_QUERY)
             .fetch_all(&state.db_pool)
@@ -139,6 +140,7 @@ pub async fn get_daily_hourly_visit_count(
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> AppResult<Vec<DailyHourlyVisitCount>> {
+    state.require_admin().await?;
     let rows = sqlx::query_as::<_, DailyHourlyVisitCount>(DAILY_HOURLY_VISIT_COUNT_QUERY)
         .bind(start_date)
         .bind(end_date)
@@ -154,6 +156,7 @@ pub async fn get_revenue_by_membership_type(
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> AppResult<Vec<RevenueByMembershipTypeItem>> {
+    state.require_admin().await?;
     let rows = sqlx::query_as::<_, RevenueByMembershipTypeItem>(REVENUE_BY_MEMBERSHIP_TYPE_QUERY)
         .bind(start_date)
         .bind(end_date)
@@ -169,6 +172,7 @@ pub async fn get_active_memberships_over_time(
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> AppResult<Vec<ActiveMembershipsOverTimeItem>> {
+    state.require_admin().await?;
     tracing::info!(
         "Fetching active memberships over time from {} to {}",
         start_date,

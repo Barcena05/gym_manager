@@ -1,8 +1,8 @@
+use crate::card_id;
 use crate::dto::{
     GetMemberByIdPayload, GetMembersPaginatedPayload, MemberInfo, MemberPayload,
     MemberWithMembership, PaginatedResponse,
 };
-use crate::error::{ErrorCodes, TranslatableError};
 use crate::utils;
 use crate::{
     error::{AppError, Result as AppResult},
@@ -22,13 +22,6 @@ pub async fn add_member(payload: MemberPayload, state: State<'_, AppState>) -> A
         &payload.last_name
     );
 
-    if payload.card_id.trim().is_empty() {
-        tracing::warn!("Validation failed: Card id must be specified.");
-        return Err(AppError::Validation(
-            "Card id must not be empty!".to_string(),
-        ));
-    }
-
     if payload.first_name.trim().is_empty() || payload.last_name.trim().is_empty() {
         tracing::warn!("Validation failed: First and last name are required!.");
         return Err(AppError::Validation(
@@ -37,9 +30,34 @@ pub async fn add_member(payload: MemberPayload, state: State<'_, AppState>) -> A
     }
 
     let now = chrono::Utc::now().naive_utc();
-    let short_card_id = payload.card_id.chars().take(4).collect::<String>();
 
-    let result = sqlx::query!(
+    for attempt in 0..5 {
+        let card_id = card_id::generate_card_id();
+        let short_card_id = card_id::generate_short_card_id();
+
+        let card_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM members WHERE card_id = ?1)",
+        )
+        .bind(&card_id)
+        .fetch_one(&state.db_pool)
+        .await?;
+
+        let short_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM members WHERE short_card_id = ?1)",
+        )
+        .bind(&short_card_id)
+        .fetch_one(&state.db_pool)
+        .await?;
+
+        if card_exists || short_exists {
+            tracing::warn!(
+                "Generated card code collision (attempt {}), retrying.",
+                attempt + 1
+            );
+            continue;
+        }
+
+        let result = sqlx::query!(
             r#"
             INSERT INTO members (
             card_id,
@@ -55,7 +73,7 @@ pub async fn add_member(payload: MemberPayload, state: State<'_, AppState>) -> A
             )
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
             "#,
-            payload.card_id,
+            card_id,
             short_card_id,
             payload.first_name,
             payload.last_name,
@@ -69,16 +87,17 @@ pub async fn add_member(payload: MemberPayload, state: State<'_, AppState>) -> A
         .execute(&state.db_pool)
         .await;
 
-    match result {
-        Ok(query_result) => {
-            let last_insert_id = query_result.last_insert_rowid();
-            tracing::info!(
-                "Successfully inserted new member '{}' with id {}.",
-                payload.first_name,
-                last_insert_id
-            );
+        match result {
+            Ok(query_result) => {
+                let last_insert_id = query_result.last_insert_rowid();
+                tracing::info!(
+                    "Successfully inserted new member '{}' with id {} and card_id {}.",
+                    payload.first_name,
+                    last_insert_id,
+                    card_id
+                );
 
-            let new_type = sqlx::query_as!(
+                let new_type = sqlx::query_as!(
                     Member,
                     r#"
                     SELECT id, card_id, short_card_id, first_name, last_name, email, phone, date_of_birth, photo_path, created_at, updated_at, is_deleted
@@ -90,26 +109,28 @@ pub async fn add_member(payload: MemberPayload, state: State<'_, AppState>) -> A
                 .fetch_one(&state.db_pool)
                 .await?;
 
-            Ok(new_type)
-        }
-        Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
-            tracing::warn!(
-                "Failed to create member: card_id {} exists! Error: {:?}",
-                payload.card_id,
-                db_err
-            );
-            Err(AppError::Translatable(TranslatableError::with_params(
-                ErrorCodes::CARD_ALREADY_EXISTS,
-                serde_json::json!({"card_id": payload.card_id}),
-                "failed to create member: card_id already exists!",
-            )))
-        }
-        Err(e) => {
-            tracing::error!("Failed to insert new member into database: {:?}", e);
-            Err(AppError::Sqlx(e)) // Convert general SQLx errors
+                return Ok(new_type);
+            }
+            Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
+                tracing::warn!(
+                    "Generated card code collision on insert (attempt {}), retrying: {:?}",
+                    attempt + 1,
+                    db_err
+                );
+                continue;
+            }
+            Err(e) => {
+                tracing::error!("Failed to insert new member into database: {:?}", e);
+                return Err(AppError::Sqlx(e));
+            }
         }
     }
+
+    Err(AppError::Database(
+        "Could not generate a unique card id after several attempts".to_string(),
+    ))
 }
+
 const RELEVANT_MEMBERSHIP_CTE: &str = r#"
 WITH latest_memberships AS (
     SELECT
@@ -199,7 +220,7 @@ pub async fn get_members_with_memberships_paginated(
             order_direction, order_direction
         ),
         Some("card_id") => format!(
-            "ORDER BY CAST(m.card_id AS INTEGER) {}",  // 👈 CAST aquí
+            "ORDER BY m.card_id {}",  // 👈 CAST aquí
             order_direction
         ),
         Some("membership_status") => format!("ORDER BY ms.status {}", order_direction),
@@ -330,6 +351,7 @@ pub async fn get_member_by_id_with_membership(
           mt.id as membership_type_id,
           mt.duration_days as membership_type_duration_days,
           mt.visit_limit as membership_type_visit_limit,
+          mt.daily_visit_limit as membership_type_daily_visit_limit,
           mt.enter_by as membership_type_enter_by,
           mt.price as membership_type_price
       FROM
@@ -443,6 +465,7 @@ pub async fn get_member_by_card_id(
 }
 #[tauri::command]
 pub async fn delete_member(id: i64, state: State<'_, AppState>) -> AppResult<()> {
+    state.require_admin().await?;
     tracing::info!("Attempting to delete member with id: {}", id);
 
     let result = sqlx::query!("DELETE FROM members WHERE id = ?", id)
@@ -485,33 +508,30 @@ pub async fn update_member(
         ));
     }
 
-    if payload.card_id.trim().is_empty() {
+    if payload.first_name.trim().is_empty() || payload.last_name.trim().is_empty() {
         return Err(AppError::Validation(
-            "Card id must not be empty!".to_string(),
+            "First and last name are required.".to_string(),
         ));
     }
 
     let now = chrono::Utc::now().naive_utc();
-    let short_card_id = payload.card_id.chars().take(4).collect::<String>();
 
-    let result = sqlx::query!(
+    let result = sqlx::query(
         r#"
         UPDATE members SET
-            card_id = ?, short_card_id = ?, first_name = ?, last_name = ?,
-            email = ?, phone = ?, date_of_birth = ?, photo_path = ?, updated_at = ?
+            first_name = ?, last_name = ?,
+            email = ?, phone = ?, date_of_birth = ?, photo_path = COALESCE(?, photo_path), updated_at = ?
         WHERE id = ? AND is_deleted = FALSE
         "#,
-        payload.card_id,
-        short_card_id,
-        payload.first_name,
-        payload.last_name,
-        payload.email,
-        payload.phone,
-        payload.date_of_birth,
-        payload.photo_path,
-        now,
-        member_id
     )
+    .bind(payload.first_name)
+    .bind(payload.last_name)
+    .bind(payload.email)
+    .bind(payload.phone)
+    .bind(payload.date_of_birth)
+    .bind(payload.photo_path)
+    .bind(now)
+    .bind(member_id)
     .execute(&state.db_pool)
     .await;
 
@@ -534,15 +554,12 @@ pub async fn update_member(
         }
         Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
             tracing::warn!(
-                "Failed to update member: card_id {} or email already exists! Error: {:?}",
-                payload.card_id,
+                "Failed to update member due to a unique constraint: {:?}",
                 db_err
             );
-            Err(AppError::Translatable(TranslatableError::with_params(
-                ErrorCodes::CARD_ALREADY_EXISTS,
-                serde_json::json!({"card_id": payload.card_id}),
-                "failed to create member: card_id already exists!",
-            )))
+            Err(AppError::Database(
+                "A member with the same data already exists".to_string(),
+            ))
         }
         Err(e) => {
             tracing::error!("Failed to update member in database: {:?}", e);

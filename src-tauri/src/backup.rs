@@ -390,6 +390,7 @@ pub async fn restore_from_backup(
     tracing::info!("Starting database restore process...");
 
     let app_state = app_handle.state::<AppState>();
+    app_state.require_admin().await?;
     let backup_url = app_state.settings.read().await.backup_url.clone();
     let gym_code = app_state.settings.read().await.gym_code.clone();
 

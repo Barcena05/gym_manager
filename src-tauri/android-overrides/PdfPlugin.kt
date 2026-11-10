@@ -81,4 +81,39 @@ class PdfPlugin(private val activity: Activity) : Plugin(activity) {
             invoke.reject(e.message)
         }
     }
+
+    @Command
+    fun shareFile(invoke: Invoke) {
+        try {
+            val args = invoke.parseArgs(OpenPdfArgs::class.java)
+            val path = args.path
+            if (path.isNullOrBlank()) {
+                invoke.reject("Archivo no proporcionado")
+                return
+            }
+
+            val file = File(path)
+            if (!file.exists() || file.length() == 0L) {
+                invoke.reject("Archivo no encontrado o vacío")
+                return
+            }
+
+            val uri: Uri = FileProvider.getUriForFile(
+                activity,
+                "${activity.packageName}.fileprovider",
+                file
+            )
+
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/zip"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            activity.startActivity(Intent.createChooser(shareIntent, "Guardar o compartir backup"))
+            invoke.resolve(JSObject())
+        } catch (e: Exception) {
+            invoke.reject(e.message)
+        }
+    }
 }

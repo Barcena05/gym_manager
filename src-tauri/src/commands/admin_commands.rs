@@ -4,7 +4,7 @@ use crate::{
     dto::{BackupMetadata, UserDisplay, UserPayload},
     error::{ErrorCodes, Result as AppResult, TranslatableError},
     models::User,
-    state::AppState,
+    state::{AppState, SessionUser},
     utils, AppError,
 };
 use chrono_tz::Tz;
@@ -27,7 +27,11 @@ pub struct LoginResponse {
 }
 
 #[tauri::command]
-pub async fn login(payload: LoginPayload, state: State<'_, AppState>) -> AppResult<LoginResponse> {
+pub async fn login(
+    app_handle: AppHandle,
+    payload: LoginPayload,
+    state: State<'_, AppState>,
+) -> AppResult<LoginResponse> {
     let username = payload.username.trim();
     let password = payload.password.trim();
     tracing::info!("Login attempt for user: {}", username);
@@ -43,6 +47,14 @@ pub async fn login(payload: LoginPayload, state: State<'_, AppState>) -> AppResu
     match user {
         Some(u) => match utils::verify_password(password, &u.password_hash) {
             Ok(true) => {
+                let session = SessionUser {
+                    username: u.username.clone(),
+                    role: u.role.clone(),
+                };
+                if let Err(error) = crate::state::save_session(&app_handle, &session).await {
+                    tracing::error!("Failed to persist login session: {:?}", error);
+                }
+                *state.current_user.write().await = Some(session);
                 tracing::info!("User '{}' logged in successfully.", username);
                 Ok(LoginResponse {
                     success: true,
@@ -82,7 +94,22 @@ pub async fn login(payload: LoginPayload, state: State<'_, AppState>) -> AppResu
 }
 
 #[tauri::command]
+pub async fn logout(app_handle: AppHandle, state: State<'_, AppState>) -> AppResult<()> {
+    if let Err(error) = crate::state::clear_session(&app_handle).await {
+        tracing::error!("Failed to clear login session: {:?}", error);
+    }
+    *state.current_user.write().await = None;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_session(state: State<'_, AppState>) -> AppResult<Option<SessionUser>> {
+    Ok(state.current_user.read().await.clone())
+}
+
+#[tauri::command]
 pub async fn get_all_users(app_state: tauri::State<'_, AppState>) -> AppResult<Vec<UserDisplay>> {
+    app_state.require_admin().await?;
     let users = sqlx::query_as!(
         UserDisplay,
         "SELECT id as `id!`, username, role, created_at, updated_at FROM users"
@@ -98,6 +125,7 @@ pub async fn get_user_by_id(
     app_state: tauri::State<'_, AppState>,
     user_id: i64,
 ) -> AppResult<Option<UserDisplay>> {
+    app_state.require_admin().await?;
     let user = sqlx::query_as!(
         UserDisplay,
         "SELECT id as `id!`, username, role, created_at, updated_at FROM users WHERE id = ?",
@@ -114,6 +142,7 @@ pub async fn save_user(
     app_state: tauri::State<'_, AppState>,
     payload: UserPayload,
 ) -> AppResult<UserDisplay> {
+    app_state.require_admin().await?;
     if payload.username.is_empty() {
         return Err(AppError::Validation("Username cannot be empty".to_string()));
     }
@@ -190,6 +219,7 @@ pub async fn upload_logo(
     extension: String,
     state: State<'_, AppState>,
 ) -> Result<String, AppError> {
+    state.require_admin().await?;
     let app_data_dir = app_handle.path().app_data_dir()?;
     let logos_dir = app_data_dir.join("logos");
     fs::create_dir_all(&logos_dir).await?;
@@ -212,6 +242,7 @@ pub async fn remove_logo(
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
+    state.require_admin().await?;
     let mut settings = state.settings.write().await;
     settings.logo_path = None;
     drop(settings);
@@ -226,6 +257,7 @@ pub async fn upload_login_background(
     extension: String,
     state: State<'_, AppState>,
 ) -> Result<String, AppError> {
+    state.require_admin().await?;
     let app_data_dir = app_handle.path().app_data_dir()?;
     let backgrounds_dir = app_data_dir.join("backgrounds");
     tokio::fs::create_dir_all(&backgrounds_dir).await?;
@@ -248,6 +280,7 @@ pub async fn remove_login_background(
     app_handle: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
+    state.require_admin().await?;
     let mut settings = state.settings.write().await;
     settings.login_background_path = None;
     drop(settings);
@@ -261,6 +294,7 @@ pub async fn change_user_password(
     user_id: i64,
     new_password: String,
 ) -> AppResult<()> {
+    app_state.require_admin().await?;
     if new_password.is_empty() {
         return Err(AppError::Validation(
             "New password cannot be empty".to_string(),
@@ -295,6 +329,7 @@ pub async fn change_user_password(
 
 #[tauri::command]
 pub async fn delete_user(app_state: tauri::State<'_, AppState>, user_id: i64) -> AppResult<()> {
+    app_state.require_admin().await?;
     // Check if user exists
     let user_exists = sqlx::query!("SELECT COUNT(*) as count FROM users WHERE id = ?", user_id)
         .fetch_one(&app_state.db_pool)
@@ -337,6 +372,7 @@ pub async fn update_app_settings(
     app_state: tauri::State<'_, AppState>,
     payload: UpdateAppSettingsPayload,
 ) -> AppResult<()> {
+    app_state.require_admin().await?;
     let mut settings = app_state.settings.write().await;
     let mut changed = false;
     if let Some(rate) = payload.usd_to_cup_rate {
@@ -416,6 +452,7 @@ pub async fn update_app_settings(
 pub async fn get_remote_backup_metadata(
     app_state: tauri::State<'_, AppState>,
 ) -> AppResult<Vec<BackupMetadata>> {
+    app_state.require_admin().await?;
     let backup_url = app_state.settings.read().await.backup_url.clone();
     let gym_code = app_state.settings.read().await.gym_code.clone();
 
@@ -474,7 +511,8 @@ pub async fn get_remote_backup_metadata(
 }
 
 #[tauri::command]
-pub async fn trigger_backup(app_handle: tauri::AppHandle) -> AppResult<()> {
+pub async fn trigger_backup(app_handle: tauri::AppHandle, state: tauri::State<'_, AppState>) -> AppResult<()> {
+    state.require_admin().await?;
     tracing::info!("Triggering manual backup!");
     let result = manual_trigger_backup(app_handle).await;
     match result {

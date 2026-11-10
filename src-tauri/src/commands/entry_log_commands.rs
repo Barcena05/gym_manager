@@ -106,10 +106,23 @@ async fn deny_entry(
     )
     .await?;
 
+    let photo_path: Option<String> = if let Some(member_id) = member_id {
+        let stored_photo: Option<Option<String>> = sqlx::query_scalar(
+            "SELECT photo_path FROM members WHERE id = ?",
+        )
+        .bind(member_id)
+        .fetch_optional(&mut **tx)
+        .await?;
+        stored_photo.flatten()
+    } else {
+        None
+    };
+
     Ok(ScanProcessingResult {
         status,
         message: message.to_string(),
         member_name: member_name.cloned(),
+        photo_path,
         card_id: Some(card_id.to_string()),
         membership_type_name: membership.and_then(|m| m.membership_type_name.clone()),
         membership_end_date: membership.and_then(|m| m.membership_end_date),
@@ -129,6 +142,7 @@ pub async fn process_scan(
             status: EntryStatus::Error,
             message: "card_invalid".to_string(),
             member_name: None,
+            photo_path: None,
             card_id: None,
             membership_type_name: None,
             membership_end_date: None,
@@ -210,6 +224,8 @@ pub async fn process_scan(
             ms.purchase_date as membership_purchase_date,
             mt.name AS membership_type_name,
             mt.enter_by AS membership_type_enter_by,
+            mt.visit_limit AS membership_type_visit_limit,
+            mt.daily_visit_limit AS membership_type_daily_visit_limit,
             '' AS member_first_name,
             '' AS member_last_name
         FROM
@@ -468,46 +484,51 @@ pub async fn process_scan(
 
             return result;
         }
-    } // Check if member is already checked in today
+    }
 
+    // Check the daily entry limit. 0 means unlimited entries per day,
+    // limited only by the membership's remaining visits.
     let now_local = Utc::now().with_timezone(&gym_tz);
     let today_local = now_local.date_naive();
+    let daily_visit_limit = membership.membership_type_daily_visit_limit.unwrap_or(0);
 
-    let already_checked_in = match sqlx::query!(
-        "SELECT COUNT(*) as count FROM entry_logs WHERE member_id = ? AND local_date = ? AND status = 'allowed'",
-        member.id,
-        today_local
-    )
-    .fetch_one(&mut *tx)
-    .await
-    {
-      Ok(row) => row.count > 0,
-      Err(e) => {
-          tracing::error!("Database error checking existing entries: {}", e);
-          let _ = tx.rollback().await;
-          return Err(AppError::Sqlx(e));
-      }
-    };
-
-    if already_checked_in {
-        let result = deny_entry(
-            &mut tx,
-            &gym_tz,
-            Some(member.id),
-            Some(membership_id),
-            scanned_card_id,
-            EntryStatus::DeniedAlreadyCheckedIn,
-            "denied_already_checked_in",
-            "already_checked",
-            Some(&member_full_name),
-            Some(&membership),
+    if daily_visit_limit > 0 {
+        let allowed_entries_today = match sqlx::query!(
+            "SELECT COUNT(*) as count FROM entry_logs WHERE member_id = ? AND local_date = ? AND status = 'allowed'",
+            member.id,
+            today_local
         )
-        .await;
-        if let Err(e) = tx.commit().await {
-            tracing::error!("Failed to commit transaction for denied entry: {}", e);
-        }
+        .fetch_one(&mut *tx)
+        .await
+        {
+            Ok(row) => row.count,
+            Err(e) => {
+                tracing::error!("Database error checking daily entries: {}", e);
+                let _ = tx.rollback().await;
+                return Err(AppError::Sqlx(e));
+            }
+        };
 
-        return result;
+        if i64::from(allowed_entries_today) >= daily_visit_limit {
+            let result = deny_entry(
+                &mut tx,
+                &gym_tz,
+                Some(member.id),
+                Some(membership_id),
+                scanned_card_id,
+                EntryStatus::DeniedAlreadyCheckedIn,
+                "denied_already_checked_in",
+                "already_checked",
+                Some(&member_full_name),
+                Some(&membership),
+            )
+            .await;
+            if let Err(e) = tx.commit().await {
+                tracing::error!("Failed to commit transaction for denied entry: {}", e);
+            }
+
+            return result;
+        }
     }
 
     // Handle active membership - update visits and allow entry
@@ -590,6 +611,7 @@ pub async fn process_scan(
         status: EntryStatus::Allowed,
         message: "allowed".to_string(),
         member_name: Some(member_full_name),
+        photo_path: member.photo_path.clone(),
         card_id: member.card_id.clone(),
         membership_type_name: membership.membership_type_name.clone(),
         membership_end_date: membership.membership_end_date,
@@ -685,6 +707,7 @@ pub async fn process_scan_single(
                 status: EntryStatus::AllowedSingle,
                 message: "allowed_single".to_string(),
                 member_name: Some(member_full_name),
+                photo_path: member.photo_path.clone(),
                 card_id: Some(card_id.to_string()),
                 membership_type_name: None,
                 membership_end_date: None,
@@ -698,6 +721,7 @@ pub async fn process_scan_single(
                     status: EntryStatus::Error,
                     message: "card_invalid".to_string(),
                     member_name: None,
+                    photo_path: None,
                     card_id: None,
                     membership_type_name: None,
                     membership_end_date: None,
@@ -747,6 +771,7 @@ pub async fn process_scan_single(
                 status: EntryStatus::AllowedSingle,
                 message: "allowed_single".to_string(),
                 member_name: Some(member_full_name),
+                photo_path: None,
                 card_id: None,
                 membership_type_name: None,
                 membership_end_date: None,
@@ -834,14 +859,15 @@ fn build_where_clause_and_params(params: &EntryLogQueryParams) -> (String, Vec<S
         }
     }
 
-    // Date range search
+    // Date range search. Use the stored local date so timezone differences
+    // between UTC entry_time and the gym timezone cannot hide recent entries.
     if let Some(date_from) = params.date_from {
-        where_conditions.push("DATE(el.entry_time) >= ?".to_string());
+        where_conditions.push("el.local_date >= ?".to_string());
         sql_params.push(date_from.to_string());
     }
 
     if let Some(date_to) = params.date_to {
-        where_conditions.push("DATE(el.entry_time) <= ?".to_string());
+        where_conditions.push("el.local_date <= ?".to_string());
         sql_params.push(date_to.to_string());
     }
 
@@ -910,6 +936,7 @@ pub async fn get_entry_logs(
     search_params: EntryLogQueryParams,
     state: State<'_, AppState>,
 ) -> AppResult<PaginatedResponse<EntryLogDisplay>> {
+    state.require_admin().await?;
     let mut conn = state.db_pool.acquire().await?;
 
     // Validate and set defaults for pagination
@@ -1050,18 +1077,19 @@ pub async fn get_entry_logs_stats(
     date_to: Option<NaiveDate>,
     state: State<'_, AppState>,
 ) -> AppResult<serde_json::Value> {
+    state.require_admin().await?;
     let mut conn = state.db_pool.acquire().await?;
 
     let mut where_conditions = vec!["1=1"];
     let mut params = Vec::new();
 
     if let Some(from_date) = date_from {
-        where_conditions.push("DATE(el.entry_time) >= ?");
+        where_conditions.push("el.local_date >= ?");
         params.push(from_date.to_string());
     }
 
     if let Some(to_date) = date_to {
-        where_conditions.push("DATE(el.entry_time) <= ?");
+        where_conditions.push("el.local_date <= ?");
         params.push(to_date.to_string());
     }
 
@@ -1109,6 +1137,7 @@ pub async fn delete_entry_logs(
     period: Option<i64>, // number ofa recent months of logs to keep
     state: State<'_, AppState>,
 ) -> AppResult<()> {
+    state.require_admin().await?;
     let mut conn = state.db_pool.acquire().await?;
     if period.is_none() {
         return Err(AppError::Validation("Period must be specified".to_string()));
@@ -1146,7 +1175,20 @@ pub async fn delete_entry_logs(
 }
 
 #[tauri::command]
+pub async fn delete_all_entry_logs(state: State<'_, AppState>) -> AppResult<u64> {
+    state.require_admin().await?;
+    let mut conn = state.db_pool.acquire().await?;
+
+    let result = sqlx::query("DELETE FROM entry_logs")
+        .execute(&mut *conn)
+        .await?;
+
+    Ok(result.rows_affected())
+}
+
+#[tauri::command]
 pub async fn delete_entry_log(entry_log_id: i64, state: State<'_, AppState>) -> AppResult<()> {
+    state.require_admin().await?;
     let mut conn = state.db_pool.acquire().await?;
 
     sqlx::query!("DELETE FROM entry_logs WHERE id = ?", entry_log_id)

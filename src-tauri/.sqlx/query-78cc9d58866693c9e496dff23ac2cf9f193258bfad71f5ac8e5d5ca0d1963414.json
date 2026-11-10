@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n                    SELECT id, name, duration_days, visit_limit, price, enter_by, description, created_at, updated_at, is_deleted, is_active\n                    FROM membership_types\n                    WHERE id = ?\n                    ",
+  "query": "\n                    SELECT id, name, duration_days, visit_limit, daily_visit_limit, price, enter_by, description, created_at, updated_at, is_deleted, is_active\n                    FROM membership_types\n                    WHERE id = ?\n                    ",
   "describe": {
     "columns": [
       {
@@ -24,38 +24,43 @@
         "type_info": "Int64"
       },
       {
-        "name": "price",
+        "name": "daily_visit_limit",
         "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "price",
+        "ordinal": 5,
         "type_info": "Float"
       },
       {
         "name": "enter_by",
-        "ordinal": 5,
+        "ordinal": 6,
         "type_info": "Int64"
       },
       {
         "name": "description",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Text"
       },
       {
         "name": "created_at",
-        "ordinal": 7,
-        "type_info": "Datetime"
-      },
-      {
-        "name": "updated_at",
         "ordinal": 8,
         "type_info": "Datetime"
       },
       {
-        "name": "is_deleted",
+        "name": "updated_at",
         "ordinal": 9,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "is_deleted",
+        "ordinal": 10,
         "type_info": "Bool"
       },
       {
         "name": "is_active",
-        "ordinal": 10,
+        "ordinal": 11,
         "type_info": "Bool"
       }
     ],
@@ -68,6 +73,7 @@
       true,
       true,
       false,
+      false,
       true,
       true,
       false,
@@ -76,5 +82,5 @@
       false
     ]
   },
-  "hash": "8a2644edbf9af1df0f401d6447910d5e2a66e51595f736e523aceed06495bf1e"
+  "hash": "78cc9d58866693c9e496dff23ac2cf9f193258bfad71f5ac8e5d5ca0d1963414"
 }

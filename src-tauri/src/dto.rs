@@ -7,7 +7,8 @@ use crate::models::{Member, Membership, MembershipType};
 #[derive(Deserialize)]
 pub struct MemberPayload {
     pub id: Option<i64>, // Optional ID for updates, required for new members
-    pub card_id: String,
+    #[serde(default)]
+    pub card_id: Option<String>,
     pub first_name: String,
     pub last_name: String,
     pub email: Option<String>,
@@ -94,6 +95,7 @@ pub struct NewMembershipTypePayload {
     pub name: String,
     pub duration_days: Option<i64>,
     pub visit_limit: Option<i64>,
+    pub daily_visit_limit: Option<i64>,
     pub enter_by: Option<i64>,
     pub price: f64,
     pub description: Option<String>,
@@ -148,6 +150,7 @@ pub struct MemberWithMembership {
     pub membership_type_name: Option<String>,
     pub membership_type_duration_days: Option<i64>,
     pub membership_type_visit_limit: Option<i64>,
+    pub membership_type_daily_visit_limit: Option<i64>,
     pub membership_type_enter_by: Option<i64>,
     pub membership_type_price: Option<f64>,
 
@@ -168,6 +171,8 @@ pub struct MembershipInfo {
     pub membership_type_id: Option<i64>,
     pub membership_type_name: Option<String>,
     pub membership_type_enter_by: Option<i64>,
+    pub membership_type_visit_limit: Option<i64>,
+    pub membership_type_daily_visit_limit: Option<i64>,
 
     pub membership_id: Option<i64>,
     pub membership_start_date: Option<NaiveDate>,
@@ -198,6 +203,7 @@ pub struct ScanProcessingResult {
     pub status: EntryStatus,
     pub message: String,
     pub member_name: Option<String>,
+    pub photo_path: Option<String>,
     pub card_id: Option<String>,
     pub membership_type_name: Option<String>,
     pub membership_end_date: Option<NaiveDate>,

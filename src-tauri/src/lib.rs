@@ -1,6 +1,8 @@
 pub mod backup;
+pub mod card_id;
 pub mod commands;
 pub mod config;
+pub mod database_transfer;
 pub mod db;
 pub mod dto;
 pub mod error;
@@ -179,7 +181,8 @@ pub fn run() {
         tracing::info!("Database pool initialized and migrations run.");
 
         // --- Create and Manage State ---
-        let app_state = AppState::new(pool.clone(), settings);
+        let persisted_session = rt.block_on(crate::state::load_session(&app_handle));
+        let app_state = AppState::new(pool.clone(), settings, persisted_session);
         app.manage(app_state); // Register the state with Tauri
         tracing::info!("Application state created and managed.");
 
@@ -203,6 +206,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             save_pdf,
             commands::admin_commands::login,
+            commands::admin_commands::logout,
+            commands::admin_commands::get_session,
+            database_transfer::export_database_zip,
+            database_transfer::import_database_file,
             commands::admin_commands::get_app_settings,
             commands::admin_commands::update_app_settings,
             commands::admin_commands::get_all_users,
@@ -242,6 +249,7 @@ pub fn run() {
             commands::entry_log_commands::delete_entry_log,
             commands::entry_log_commands::get_member_entry_logs,
             commands::entry_log_commands::delete_entry_logs,
+            commands::entry_log_commands::delete_all_entry_logs,
             commands::analytics_commands::get_membership_type_distribution,
             commands::analytics_commands::get_revenue_by_membership_type,
             commands::analytics_commands::get_daily_hourly_visit_count,

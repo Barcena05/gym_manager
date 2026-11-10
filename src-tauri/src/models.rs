@@ -35,6 +35,7 @@ pub struct MembershipType {
     pub name: String,
     pub duration_days: Option<i64>,
     pub visit_limit: Option<i64>,
+    pub daily_visit_limit: i64,
     pub enter_by: Option<i64>,
     pub price: f64,
     pub description: Option<String>,
