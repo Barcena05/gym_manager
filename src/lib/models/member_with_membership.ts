@@ -45,6 +45,7 @@ export interface MemberWithMembership {
   membership_type_price: number | null;
   membership_type_duration_days: number | null;
   membership_type_visit_limit: number | null;
+  membership_type_daily_visit_limit: number | null;
   membership_type_enter_by: number | null;
 }
 
@@ -62,4 +63,6 @@ export interface MembershipInfo {
 
 	membership_type_id: number | null;
 	membership_type_name: string | null;
+	membership_type_visit_limit: number | null;
+	membership_type_daily_visit_limit: number | null;
 }

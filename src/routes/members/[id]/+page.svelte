@@ -32,6 +32,7 @@
 	import { exchangeRate } from '$lib/stores/settings';
 	import { buildBarcodePdfBase64, isAndroid, savePdfAndOpen } from '$lib/barcode-pdf';
 	import { printElementById } from '$lib/print';
+	import { auth } from '$lib/stores/auth';
 
 	let isLoadingHistory = $state(true);
 	let error: string | null = $state(null);
@@ -238,27 +239,29 @@
 								<Pencil class="h-4 w-4" />
 							</Button>
 
-							<AlertDialog.Root>
-								<AlertDialog.Trigger>
-									<Button variant="destructive" size="icon" title={m['common.delete']()}>
-										<Trash2 class="h-4 w-4" />
-									</Button>
-								</AlertDialog.Trigger>
-								<AlertDialog.Content>
-									<AlertDialog.Header>
-										<AlertDialog.Title>{m['common.are_you_sure']()}</AlertDialog.Title>
-										<AlertDialog.Description>
-											{m.member_delete_desc()}</AlertDialog.Description
-										>
-									</AlertDialog.Header>
-									<AlertDialog.Footer>
-										<AlertDialog.Cancel>{m['common.cancel']()}</AlertDialog.Cancel>
-										<AlertDialog.Action onclick={() => handleDeleteMember(data?.id || null)}
-											>{m['common.confirm']()}</AlertDialog.Action
-										>
-									</AlertDialog.Footer>
-								</AlertDialog.Content>
-							</AlertDialog.Root>
+							{#if $auth.role === 'admin'}
+								<AlertDialog.Root>
+									<AlertDialog.Trigger>
+										<Button variant="destructive" size="icon" title={m['common.delete']()}>
+											<Trash2 class="h-4 w-4" />
+										</Button>
+									</AlertDialog.Trigger>
+									<AlertDialog.Content>
+										<AlertDialog.Header>
+											<AlertDialog.Title>{m['common.are_you_sure']()}</AlertDialog.Title>
+											<AlertDialog.Description>
+												{m.member_delete_desc()}</AlertDialog.Description
+											>
+										</AlertDialog.Header>
+										<AlertDialog.Footer>
+											<AlertDialog.Cancel>{m['common.cancel']()}</AlertDialog.Cancel>
+											<AlertDialog.Action onclick={() => handleDeleteMember(data?.id || null)}
+												>{m['common.confirm']()}</AlertDialog.Action
+											>
+										</AlertDialog.Footer>
+									</AlertDialog.Content>
+								</AlertDialog.Root>
+							{/if}
 						</div>
 					</Card.Title>
 				</Card.Header>
@@ -388,7 +391,7 @@
 								<Label class="font-semibold">{m.membership_type()}</Label>
 								<Input type="text" readonly value={data?.membership_type_name ?? ''} />
 							</div>
-							<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+							<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
 								<div class="w-full space-y-2">
 									<Label class="font-semibold">{m.duration_days()}</Label>
 									<Input type="text" readonly value={data?.membership_type_duration_days ?? ''} />
@@ -396,6 +399,14 @@
 								<div class="w-full space-y-2">
 									<Label class="font-semibold">{m['common.visit_limit']()}</Label>
 									<Input type="text" readonly value={data?.membership_type_visit_limit ?? ''} />
+								</div>
+								<div class="w-full space-y-2">
+									<Label class="font-semibold">{m.daily_visit_limit()}</Label>
+									<Input
+										type="text"
+										readonly
+										value={data?.membership_type_daily_visit_limit ?? 0}
+									/>
 								</div>
 
 								<div class="w-full space-y-2">
@@ -574,28 +585,30 @@
 											<Pencil class="h-4 w-4" />
 										</Button>
 
-										<AlertDialog.Root>
-											<AlertDialog.Trigger>
-												<Button variant="destructive" size="icon" title={m['common.delete']()}>
-													<Trash2 class="h-4 w-4" />
-												</Button>
-											</AlertDialog.Trigger>
-											<AlertDialog.Content>
-												<AlertDialog.Header>
-													<AlertDialog.Title>{m['common.are_you_sure']()}</AlertDialog.Title>
-													<AlertDialog.Description>
-														{m.delete_membership_desc()}</AlertDialog.Description
-													>
-												</AlertDialog.Header>
-												<AlertDialog.Footer>
-													<AlertDialog.Cancel>{m['common.cancel']()}</AlertDialog.Cancel>
-													<AlertDialog.Action
-														onclick={() => handleDeleteMembership(item.membership_id)}
-														>{m['common.confirm']()}</AlertDialog.Action
-													>
-												</AlertDialog.Footer>
-											</AlertDialog.Content>
-										</AlertDialog.Root>
+										{#if $auth.role === 'admin'}
+											<AlertDialog.Root>
+												<AlertDialog.Trigger>
+													<Button variant="destructive" size="icon" title={m['common.delete']()}>
+														<Trash2 class="h-4 w-4" />
+													</Button>
+												</AlertDialog.Trigger>
+												<AlertDialog.Content>
+													<AlertDialog.Header>
+														<AlertDialog.Title>{m['common.are_you_sure']()}</AlertDialog.Title>
+														<AlertDialog.Description>
+															{m.delete_membership_desc()}</AlertDialog.Description
+														>
+													</AlertDialog.Header>
+													<AlertDialog.Footer>
+														<AlertDialog.Cancel>{m['common.cancel']()}</AlertDialog.Cancel>
+														<AlertDialog.Action
+															onclick={() => handleDeleteMembership(item.membership_id)}
+															>{m['common.confirm']()}</AlertDialog.Action
+														>
+													</AlertDialog.Footer>
+												</AlertDialog.Content>
+											</AlertDialog.Root>
+										{/if}
 									</Table.Cell>
 								</Table.Row>
 							{/each}

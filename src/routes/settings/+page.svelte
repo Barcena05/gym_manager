@@ -26,6 +26,7 @@
 	import Switch from '$lib/components/ui/switch/switch.svelte';
 	import { relaunch } from '@tauri-apps/plugin-process';
 	import { appDataDir, join } from '@tauri-apps/api/path';
+	import { isAndroid } from '$lib/barcode-pdf';
 	const languages = [
 		{ id: 'en', name: 'English' },
 		{ id: 'rs', name: 'Srpski' },
@@ -35,6 +36,11 @@
 	const locale = $derived(m.locale_code() || 'bs-BA');
 	let isBackupDialogOpen = $state(false);
 	let isRestoreDialogOpen = $state(false);
+	let isImportDialogOpen = $state(false);
+	let pendingImportFile = $state<File | null>(null);
+	let exportingDatabase = $state(false);
+	let importingDatabase = $state(false);
+	let importInput: HTMLInputElement;
 
 	const df = new DateFormatter(locale, {
 		dateStyle: 'short',
@@ -287,6 +293,75 @@
 			setLoading(false);
 		}
 	}
+	function arrayBufferToBase64(buffer: ArrayBuffer): string {
+		const bytes = new Uint8Array(buffer);
+		let binary = '';
+		const chunkSize = 0x8000;
+		for (let i = 0; i < bytes.length; i += chunkSize) {
+			binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+		}
+		return btoa(binary);
+	}
+
+	async function handleExportDatabase() {
+		exportingDatabase = true;
+		setLoading(true);
+		try {
+			const path = await invoke<string>('export_database_zip', { targetPath: null });
+			if (isAndroid()) {
+				await invoke('plugin:pdf|shareFile', { path, base64: '' });
+				toast.success('Backup generado. Guarda o comparte el archivo.');
+			} else {
+				toast.success(`Backup exportado: ${path}`);
+			}
+		} catch (error: any) {
+			console.error(error);
+			toast.error(error instanceof Error ? error.message : 'No se pudo exportar el backup');
+		} finally {
+			exportingDatabase = false;
+			setLoading(false);
+		}
+	}
+
+	function selectImportFile() {
+		importInput?.click();
+	}
+
+	function handleImportFile(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		pendingImportFile = file;
+		isImportDialogOpen = true;
+	}
+
+	async function confirmImportDatabase() {
+		if (!pendingImportFile) return;
+		isImportDialogOpen = false;
+		importingDatabase = true;
+		setLoading(true);
+		try {
+			const buffer = await pendingImportFile.arrayBuffer();
+			const base64 = arrayBufferToBase64(buffer);
+			await invoke('import_database_file', {
+				base64,
+				fileName: pendingImportFile.name
+			});
+			pendingImportFile = null;
+			toast.success('Backup importado. Reiniciando la aplicación...');
+			setLoading(false);
+			setTimeout(async () => {
+				await relaunch();
+			}, 3000);
+		} catch (error: any) {
+			console.error(error);
+			importingDatabase = false;
+			setLoading(false);
+			toast.error(error instanceof Error ? error.message : 'No se pudo importar el backup');
+		}
+	}
+
 	onMount(async () => {
 		requireRole('admin');
 		setHeader({
@@ -545,6 +620,63 @@
 							</AlertDialog.Root>
 						</div>
 					</div>
+
+					<Separator class="my-2" />
+
+					<div class="space-y-3 rounded-lg border p-4">
+						<div>
+							<Label class="font-semibold">Copia de seguridad portable</Label>
+							<p class="text-xs text-muted-foreground">
+								Exporta la base de datos, fotos y configuración en un ZIP para moverlos a otro
+								dispositivo. La importación reemplaza los datos actuales y crea una copia local previa.
+							</p>
+						</div>
+						<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+							<Button
+								type="button"
+								variant="secondary"
+								class="w-full"
+								onclick={handleExportDatabase}
+								disabled={exportingDatabase}
+							>
+								{exportingDatabase ? 'Exportando...' : 'Exportar backup (.zip)'}
+							</Button>
+							<Button
+								type="button"
+								variant="outline"
+								class="w-full"
+								onclick={selectImportFile}
+								disabled={importingDatabase}
+							>
+								{importingDatabase ? 'Importando...' : 'Importar backup'}
+							</Button>
+						</div>
+						<input
+							bind:this={importInput}
+							type="file"
+							accept=".zip,.sqlite,.db,application/zip,application/x-sqlite3,application/octet-stream"
+							onchange={handleImportFile}
+							class="hidden"
+						/>
+					</div>
+
+					<AlertDialog.Root bind:open={isImportDialogOpen}>
+						<AlertDialog.Content>
+							<AlertDialog.Header>
+								<AlertDialog.Title>Importar y reemplazar datos</AlertDialog.Title>
+								<AlertDialog.Description>
+									Se reemplazará la base de datos actual y se restaurarán las fotos/configuración
+									incluidas en el ZIP. Antes se guardará una copia local de seguridad.
+								</AlertDialog.Description>
+							</AlertDialog.Header>
+							<AlertDialog.Footer>
+								<AlertDialog.Cancel>Cancelar</AlertDialog.Cancel>
+								<AlertDialog.Action type="button" onclick={confirmImportDatabase}>
+									Importar y reemplazar
+								</AlertDialog.Action>
+							</AlertDialog.Footer>
+						</AlertDialog.Content>
+					</AlertDialog.Root>
 
 					<div class="flex gap-20 justify-around mt-10">
 						<Button variant="outline" onclick={handleCancel} class="flex-1"

@@ -43,12 +43,13 @@
 	let appSettings = $state<AppSettings | null>(null);
 	let logoUrl = $state<string | null>(null);
 	let mounted = $state(false);
+	let authReady = $state(false);
 	let mobileMenuOpen = $state(false);
 	let gymName = $state('Gym');
 	let status = $state<string | null>(null);
 
 	$effect(() => {
-		if (browser && !$auth.isAuthenticated && page.url.pathname !== '/') {
+		if (browser && authReady && !$auth.isAuthenticated && page.url.pathname !== '/') {
 			goto('/');
 			resetHeader();
 		}
@@ -145,6 +146,8 @@
 		let unlistenStatus: (() => void) | undefined;
 
 		async function init() {
+			await auth.restore();
+			authReady = true;
 			await loadAndApplySettings();
 			mounted = true;
 

@@ -21,49 +21,100 @@
 	import DateField from '$lib/components/date-field/date-field.svelte';
 	import { appDataDir, join } from '@tauri-apps/api/path';
 	import { convertFileSrc } from '@tauri-apps/api/core';
+	import SwitchCamera from 'lucide-svelte/icons/switch-camera';
 
 	let error: string | null = $state(null);
 	const memberId = $derived(page.params.id);
 	const locale = $derived(m.locale_code() || 'bs-BA');
 	
 	let existingPhotoUrl = $state<string | null>(null);
-
-	let selectedPhoto = $state<{
-		bytes: Uint8Array;
-		extension: string;
-	} | null>(null);
-
+	let selectedPhoto = $state<{ bytes: Uint8Array; extension: string } | null>(null);
 	let photoPreviewUrl = $state<string | null>(null);
-	
+	let removeExistingPhoto = $state(false);
 	// Camera functionality
+	type CameraFacingMode = 'user' | 'environment';
 	let showCamera = $state(false);
 	let videoElement: HTMLVideoElement | null = $state(null);
 	let stream: MediaStream | null = $state(null);
+	let facingMode = $state<CameraFacingMode>('user');
+	let switchingCamera = $state(false);
+	let cameraRequestId = 0;
 
-	async function openCamera() {
+	function stopStream() {
+		if (stream) {
+			stream.getTracks().forEach((track) => track.stop());
+			stream = null;
+		}
+	}
+
+	async function startCamera(mode: CameraFacingMode, notifyOnError = true): Promise<boolean> {
+		const requestId = ++cameraRequestId;
+		stopStream();
+
 		try {
-			stream = await navigator.mediaDevices.getUserMedia({
-				video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+			const nextStream = await navigator.mediaDevices.getUserMedia({
+				video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } }
 			});
+
+			if (requestId !== cameraRequestId) {
+				nextStream.getTracks().forEach((track) => track.stop());
+				return false;
+			}
+
+			stream = nextStream;
+			facingMode = mode;
 			showCamera = true;
-			
+
 			setTimeout(() => {
+				if (requestId !== cameraRequestId) return;
 				if (videoElement) {
-					videoElement.srcObject = stream;
+					videoElement.srcObject = nextStream;
 					videoElement.play();
 				}
 			}, 0);
+
+			return true;
 		} catch (error) {
-			console.error('Failed to access camera:', error);
-			toast.error(m.camera_access_denied());
+			console.error(`Failed to access ${mode} camera:`, error);
+			if (requestId === cameraRequestId && notifyOnError) {
+				toast.error(m.camera_access_denied());
+			}
+			return false;
 		}
 	}
-	
-	function closeCamera() {
-		if (stream) {
-			stream.getTracks().forEach(track => track.stop());
-			stream = null;
+
+	async function openCamera() {
+		await startCamera(facingMode);
+	}
+
+	async function switchCamera() {
+		if (switchingCamera) return;
+
+		const previousMode = facingMode;
+		const nextMode: CameraFacingMode = previousMode === 'user' ? 'environment' : 'user';
+		switchingCamera = true;
+
+		try {
+			const switched = await startCamera(nextMode, false);
+			if (!showCamera || switched) return;
+
+			const restored = await startCamera(previousMode, false);
+			if (!showCamera) return;
+
+			if (restored) {
+				toast.error(m.camera_switch_failed());
+			} else {
+				closeCamera();
+				toast.error(m.camera_access_denied());
+			}
+		} finally {
+			switchingCamera = false;
 		}
+	}
+
+	function closeCamera() {
+		cameraRequestId += 1;
+		stopStream();
 		showCamera = false;
 	}
 	
@@ -100,6 +151,8 @@
 		}, 'image/jpeg', 0.9);
 	}
 
+	let memberCardId = $state('');
+
 	async function fetchMember() {
 		setLoading(true);
 		error = null;
@@ -111,7 +164,7 @@
 
 			if (result) {
 				$formData.id = result.id;
-				$formData.card_id = result.card_id ?? '';
+				memberCardId = result.card_id ?? '';
 				$formData.first_name = result.first_name;
 				$formData.last_name = result.last_name;
 				$formData.email = result.email;
@@ -133,7 +186,6 @@
 		}
 	}
 	function handlePhotoChange(event: Event) {
-		console.log('Candelaaaaa')
 		const input = event.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
@@ -156,16 +208,25 @@
 		reader.readAsArrayBuffer(file);
 	}
 	function clearPhoto() {
-		selectedPhoto = null;
+		// If a newly selected/captured photo exists, clear it first.
+		// This falls back to the existing photo (if any).
+		if (selectedPhoto) {
+			selectedPhoto = null;
+			if (photoPreviewUrl) {
+				URL.revokeObjectURL(photoPreviewUrl);
+				photoPreviewUrl = null;
+			}
+			return;
+		}
 
-		if (photoPreviewUrl) {
-			URL.revokeObjectURL(photoPreviewUrl);
-			photoPreviewUrl = null;
+		// Otherwise, mark the existing photo for removal when the form is saved.
+		if (existingPhotoUrl) {
+			existingPhotoUrl = null;
+			removeExistingPhoto = true;
 		}
 	}
 	const initialValues: z.infer<EditMemberTypeSchema> = {
 		id: 0,
-		card_id: '',
 		first_name: '',
 		last_name: '',
 		email: '',
@@ -201,6 +262,8 @@
 						photoBytes: Array.from(selectedPhoto.bytes),
 						extension: selectedPhoto.extension
 					});
+				} else if (removeExistingPhoto) {
+					await invoke('delete_member_photo', { memberId: member.id });
 				}
 				toast.success(m.member_update_success());
 				goto(`/members/${member.id}`);
@@ -298,7 +361,7 @@
 						</Button>
 					</div>
 
-					{#if selectedPhoto}
+					{#if selectedPhoto || existingPhotoUrl}
 						<Button type="button" variant="destructive" size="sm" onclick={clearPhoto}>
 							Remove
 						</Button>
@@ -365,16 +428,13 @@
 						</Form.Control>
 					</Form.Field>
 
-					<Form.Field {form} name="card_id">
-						<Form.Control>
-							{#snippet children({ props })}
-								<Form.Label class="font-semibold">{m.card_number()}</Form.Label>
-								<Input {...props} type="text" bind:value={$formData.card_id} />
-								<Form.Description class="text-xs">{m.use_scanner_or_enter()}</Form.Description>
-								<Form.FieldErrors />
-							{/snippet}
-						</Form.Control>
-					</Form.Field>
+					<div class="space-y-2">
+						<span class="text-sm font-semibold">{m.card_number()}</span>
+						<Input readonly type="text" value={memberCardId} />
+						<p class="text-xs text-muted-foreground">
+							El código se genera automáticamente y no se edita.
+						</p>
+					</div>
 
 					<div class="flex gap-20 justify-around">
 						<Button variant="outline" onclick={handleCancel} class="flex-1">{m['common.cancel']()}</Button>
@@ -390,22 +450,36 @@
 {#if showCamera}
 	<div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
 		<div class="bg-background p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4">
-			<h2 class="text-lg font-semibold mb-4">Capture Photo</h2>
+			<div class="mb-4 flex items-center justify-between gap-3">
+				<h2 class="text-lg font-semibold">{m.capture_photo()}</h2>
+				<button
+					type="button"
+					class="inline-flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+					onclick={switchCamera}
+					disabled={switchingCamera}
+					aria-label={m.switch_camera()}
+					title={m.switch_camera()}
+				>
+					<SwitchCamera class="h-4 w-4" />
+					<span class="hidden sm:inline">{m.switch_camera()}</span>
+				</button>
+			</div>
 			<video bind:this={videoElement} class="w-full rounded-lg bg-black" autoplay muted playsinline></video>
 			<div class="flex justify-center gap-4 mt-4">
 				<button 
 					type="button" 
-					class="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+					class="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
 					onclick={capturePhoto}
+					disabled={switchingCamera}
 				>
-					Capture
+					{m.capture()}
 				</button>
 				<button 
 					type="button" 
 					class="px-4 py-2 bg-muted text-muted-foreground rounded hover:bg-muted/80"
 					onclick={closeCamera}
 				>
-					Cancel
+					{m.cancel()}
 				</button>
 			</div>
 		</div>

@@ -339,6 +339,15 @@
 						</div>
 					</div>
 
+					<div class="w-full space-y-2">
+						<Label class="font-semibold">{m.daily_visit_limit()}</Label>
+						<Input
+							type="text"
+							readonly
+							value={selectedMembershipType?.daily_visit_limit ?? 0}
+						/>
+					</div>
+
 					<!-- 👇 Precio: USD y CUP (solo lectura) -->
 					<div class="w-full space-y-2 pb-2">
 						<Label class="font-semibold">{m.price()}</Label>
@@ -425,7 +434,6 @@
 										{...props}
 										type="number"
 										min={0}
-										max={selectedMembershipType?.duration_days}
 										bind:value={$formData.membership_remaining_visits}
 									/>
 									<Form.FieldErrors />

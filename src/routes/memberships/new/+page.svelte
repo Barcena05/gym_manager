@@ -27,6 +27,7 @@
 		name: '',
 		duration_days: "" as any,
 		visit_limit: null,
+		daily_visit_limit: 0,
 		enter_by: null,
 		price: "" as any,
 		description: '',
@@ -123,6 +124,19 @@
 							<Input {...props} type="text" bind:value={$formData.visit_limit} />
 							<Form.Description class="text-sm text-muted-foreground">
 								{m.visit_limit_desc()}
+							</Form.Description>
+							<Form.FieldErrors />
+						{/snippet}
+					</Form.Control>
+				</Form.Field>
+
+				<Form.Field {form} name="daily_visit_limit">
+					<Form.Control>
+						{#snippet children({ props })}
+							<Form.Label class="font-semibold">{m.daily_visit_limit()}</Form.Label>
+							<Input {...props} type="text" bind:value={$formData.daily_visit_limit} />
+							<Form.Description class="text-sm text-muted-foreground">
+								{m.daily_visit_limit_desc()}
 							</Form.Description>
 							<Form.FieldErrors />
 						{/snippet}

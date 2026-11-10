@@ -136,6 +136,9 @@ export function translateErrorCode(errorCode: string, params: any) {
 				? m.error_card_already_exists({ cardId: params.card_id })
 				: m.error_card_already_exists_generic();
 
+		case 'error.admin_required':
+			return m.error_admin_required();
+
 		case 'error.membership_type_name_exists':
 			return params?.name
 				? m.error_membership_name_already_exists({ name: params.name })

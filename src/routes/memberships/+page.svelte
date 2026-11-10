@@ -116,7 +116,8 @@
 					<Table.Row>
 						<Table.Head>{m['common.name']()}</Table.Head>
 						<Table.Head>{m['common.duration']()}</Table.Head>
-						<Table.Head>{m['common.visits']()}</Table.Head>
+						<Table.Head>{m['common.visit_limit']()}</Table.Head>
+						<Table.Head>{m.daily_visit_limit()}</Table.Head>
 						<Table.Head>{m['common.enter_by']()}</Table.Head>
 						<Table.Head>{m['common.description']()}</Table.Head>
 						<!-- 👇 Updated column header (optional: change label) -->
@@ -137,6 +138,11 @@
 							<Table.Cell
 								>{type.visit_limit
 									? `${type.visit_limit} ${type.visit_limit === 1 ? m['common.visit_single']() : m['common.visit_plural']()}`
+									: m.by_duration()}</Table.Cell
+							>
+							<Table.Cell
+								>{type.daily_visit_limit
+									? `${type.daily_visit_limit} ${type.daily_visit_limit === 1 ? m['common.visit_single']() : m['common.visit_plural']()}`
 									: m['common.unlimited']()}</Table.Cell
 							>
 							<Table.Cell

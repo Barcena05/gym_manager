@@ -3,6 +3,7 @@ export interface MembershipType {
 	name: string;
 	duration_days: number | null;
 	visit_limit: number | null;
+	daily_visit_limit: number;
 	enter_by: number | null;
 	price: number;
 	description: string | null;

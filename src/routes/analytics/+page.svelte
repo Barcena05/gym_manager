@@ -13,7 +13,7 @@
 		ActiveMembershipOverTime,
 		MembershipRevenueMap
 	} from '$lib/models/analytics';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import * as Select from '$lib/components/ui/select/index.js';
 	import { getLocalTimeZone, today, type DateValue } from '@internationalized/date';
 	import Label from '$lib/components/ui/label/label.svelte';
@@ -189,14 +189,27 @@
 		}
 	}
 
+	const refreshOnFocus = () => {
+		if (componentMounted && !document.hidden) {
+			void loadAnalyticsData();
+		}
+	};
+
 	onMount(async () => {
 		requireRole('admin');
 		setHeader({
 			title: m['common.analytics'](),
 			showBackButton: false
 		});
+		window.addEventListener('focus', refreshOnFocus);
+		document.addEventListener('visibilitychange', refreshOnFocus);
 		await loadAnalyticsData();
 		componentMounted = true;
+	});
+
+	onDestroy(() => {
+		window.removeEventListener('focus', refreshOnFocus);
+		document.removeEventListener('visibilitychange', refreshOnFocus);
 	});
 </script>
 

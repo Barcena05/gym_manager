@@ -11,6 +11,8 @@
 	import Input from '../ui/input/input.svelte';
 	import { DateFormatter } from '@internationalized/date';
 	import { m } from '$lib/paraglide/messages';
+	import { appDataDir, join } from '@tauri-apps/api/path';
+	import { convertFileSrc } from '@tauri-apps/api/core';
 
 	// Props
 	let {
@@ -26,6 +28,36 @@
 	let countdown = $state(0);
 	let timerId: number | undefined = undefined;
 	let progressIntervalId: number | undefined = undefined;
+	let photoUrl = $state<string | null>(null);
+
+	$effect(() => {
+		const photoPath = result?.photo_path ?? null;
+		let cancelled = false;
+
+		if (!photoPath) {
+			photoUrl = null;
+			return;
+		}
+
+		(async () => {
+			try {
+				const dataDir = await appDataDir();
+				const fullPath = await join(dataDir, photoPath);
+				if (!cancelled) {
+					photoUrl = convertFileSrc(fullPath);
+				}
+			} catch (error) {
+				console.error('Failed to load member photo:', error);
+				if (!cancelled) {
+					photoUrl = null;
+				}
+			}
+		})();
+
+		return () => {
+			cancelled = true;
+		};
+	});
 
 	const locale = $derived(m.locale_code() || 'bs-BA');
 
@@ -105,7 +137,12 @@
 
 {#if result}
 	<Dialog.Root bind:open>
-		<Dialog.Content class="sm:max-w-md">
+		<Dialog.Content
+			class="sm:max-w-md"
+			trapFocus={false}
+			onOpenAutoFocus={(event) => event.preventDefault()}
+			onCloseAutoFocus={(event) => event.preventDefault()}
+		>
 			<Dialog.Header class="items-center text-center">
 				<svelte:component
 					this={statusInfo.icon}
@@ -119,6 +156,16 @@
 					{translateEntryMessage(result.message)}
 				</Dialog.Description>
 			</Dialog.Header>
+
+			{#if photoUrl}
+				<div class="flex justify-center -mt-1 mb-1">
+					<img
+						src={photoUrl}
+						alt={result?.member_name ?? 'Member'}
+						class="h-32 w-32 rounded-full object-cover border-4 border-background shadow-lg"
+					/>
+				</div>
+			{/if}
 
 			{#if result && result.member_name}
 				<div class="mt-6 space-y-3 text-lg p-4">

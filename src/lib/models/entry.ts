@@ -16,6 +16,7 @@ export interface ScanProcessingResult {
 	status: EntryStatus;
 	message: string;
 	member_name: string | null;
+	photo_path: string | null;
 	card_id: string | null;
 	membership_type_name: string | null;
 	membership_end_date: string | null;

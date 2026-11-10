@@ -13,6 +13,8 @@
 	import * as Select from '$lib/components/ui/select/index.js';
 	import Label from '$lib/components/ui/label/label.svelte';
 	import Button from '$lib/components/ui/button/button.svelte';
+	import type { ErrorResponse } from '$lib/models/error';
+	import { translateErrorCode } from '$lib/utils';
 	import { requireRole } from '../guards';
 	onMount(() => {
 		requireRole('admin');
@@ -21,6 +23,19 @@
 			title: m['common.entry_log'](),
 			showBackButton: false
 		});
+
+		const refresh = () => {
+			if (!document.hidden) {
+				void fetchTableData(currentParams);
+			}
+		};
+		window.addEventListener('focus', refresh);
+		document.addEventListener('visibilitychange', refresh);
+
+		return () => {
+			window.removeEventListener('focus', refresh);
+			document.removeEventListener('visibilitychange', refresh);
+		};
 	});
 	let tableData = $state<QueryResponse<EntryLog>>({
 		data: [],
@@ -44,7 +59,9 @@
 		search_string: '',
 		filter_fields: [],
 		date_from: startDate ? startDate.toString() : undefined,
-		date_to: todayDate ? todayDate.toString() : undefined
+		// Include one extra local day so entries created late in the evening in
+		// the gym timezone (which may be ahead of the device timezone) are not hidden.
+		date_to: todayDate ? todayDate.add({ days: 1 }).toString() : undefined
 	});
 
 	// Reference to the table component for accessing methods
@@ -163,8 +180,42 @@
 		}
 	}
 
+	function showDeleteError(e: any) {
+		const errorMessage = e as ErrorResponse;
+		if (errorMessage?.error_code) {
+			toast.error(translateErrorCode(errorMessage.error_code, errorMessage.params));
+		} else if (typeof e === 'string') {
+			toast.error(e);
+		} else {
+			toast.error(m.entry_log_delete_fail());
+		}
+	}
+
+	async function handleDeleteAllLogs() {
+		try {
+			setLoading(true);
+			await invoke('delete_all_entry_logs');
+			deleteDialogOpen = false;
+			selectedPeriod = undefined;
+			tableData = {
+				data: [],
+				total: 0,
+				page: 1,
+				per_page: currentParams.per_page ?? 10,
+				total_pages: 0
+			};
+			await fetchTableData(currentParams);
+			toast.success(m.entry_log_delete_success());
+		} catch (e: any) {
+			console.error('Error deleting all entry logs:', e);
+			showDeleteError(e);
+		} finally {
+			setLoading(false);
+		}
+	}
+
 	async function handleDeleteLogs() {
-		if (!selectedPeriod) {
+		if (selectedPeriod === undefined || selectedPeriod === null || selectedPeriod === '') {
 			toast.error(m.select_period());
 			return;
 		}
@@ -174,11 +225,13 @@
 			await invoke('delete_entry_logs', { period: Number.parseInt(selectedPeriod) });
 			deleteDialogOpen = false;
 			selectedPeriod = undefined;
-			fetchTableData(currentParams);
+			await fetchTableData(currentParams);
 			toast.success(m.entry_log_delete_success());
 		} catch (e: any) {
 			console.error('Error deleting entry logs:', e);
-			toast.error(m.entry_log_delete_fail());
+			showDeleteError(e);
+		} finally {
+			setLoading(false);
 		}
 	}
 
@@ -231,6 +284,13 @@
 						</Select.Group>
 					</Select.Content>
 				</Select.Root>
+			</div>
+
+			<div class="mt-4 rounded-md border border-destructive/30 p-3">
+				<p class="mb-3 text-sm text-muted-foreground">{m.delete_all_entry_logs_desc()}</p>
+				<Button variant="destructive" onclick={handleDeleteAllLogs} class="w-full">
+					{m.delete_all()}
+				</Button>
 			</div>
 
 			<div class="flex gap-20 justify-around">

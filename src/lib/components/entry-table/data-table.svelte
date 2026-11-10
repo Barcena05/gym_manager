@@ -230,6 +230,7 @@
 
 				return renderSnippet(snippet, row.getValue('membership_type_name'));
 			},
+			meta: { label: m.membership() },
 			enableSorting: false,
 			enableHiding: true
 		},
@@ -255,6 +256,7 @@
 
 				return renderSnippet(snippet, row.getValue('notes'));
 			},
+			meta: { label: m.details() },
 			enableSorting: false,
 			enableHiding: true
 		},

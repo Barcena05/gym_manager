@@ -7,6 +7,11 @@ interface LoginResponse {
 	role: string;
 }
 
+interface SessionUser {
+	username: string;
+	role: string;
+}
+
 function createAuthStore() {
 	const { subscribe, set, update } = writable({
 		isAuthenticated: false,
@@ -17,6 +22,26 @@ function createAuthStore() {
 
 	return {
 		subscribe,
+		restore: async () => {
+			const { invoke } = await import('@tauri-apps/api/core');
+			try {
+				const session = await invoke<SessionUser | null>('get_session');
+				if (session) {
+					set({
+						isAuthenticated: true,
+						username: session.username,
+						role: session.role,
+						error: null
+					});
+					return true;
+				}
+			} catch (e) {
+				console.error('Session restore error:', e);
+			}
+
+			set({ isAuthenticated: false, username: null, role: null, error: null });
+			return false;
+		},
 		login: async (username: string, password: string) => {
 			username = username.trim();
 			password = password.trim();
@@ -49,7 +74,13 @@ function createAuthStore() {
 				return false;
 			}
 		},
-		logout: () => {
+		logout: async () => {
+			const { invoke } = await import('@tauri-apps/api/core');
+			try {
+				await invoke('logout');
+			} catch (e) {
+				console.error('Logout error:', e);
+			}
 			set({ isAuthenticated: false, role: null, username: null, error: null });
 		},
 		clearError: () => {

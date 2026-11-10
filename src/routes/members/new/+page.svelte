@@ -21,11 +21,10 @@
 	import { translateErrorCode } from '$lib/utils';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import DateField from '$lib/components/date-field/date-field.svelte';
+	import SwitchCamera from 'lucide-svelte/icons/switch-camera';
 
 	let newMember: null | Member = $state(null);
 	let showMembershipPrompt = $state(false);
-	let existingMember: Member | null = $state(null);
-	let checkingMember = $state(false);
 	const locale = $derived(m.locale_code() || 'bs-BA');
 
 	// --- Photo handling ---
@@ -33,34 +32,89 @@
 	let photoPreviewUrl: string | null = $state(null);
 
 	// --- Camera functionality ---
+	type CameraFacingMode = 'user' | 'environment';
 	let showCamera = $state(false);
 	let videoElement: HTMLVideoElement | null = $state(null);
 	let stream: MediaStream | null = $state(null);
+	let facingMode = $state<CameraFacingMode>('user');
+	let switchingCamera = $state(false);
+	let cameraRequestId = 0;
 
-	async function openCamera() {
+	function stopStream() {
+		if (stream) {
+			stream.getTracks().forEach((track) => track.stop());
+			stream = null;
+		}
+	}
+
+	async function startCamera(mode: CameraFacingMode, notifyOnError = true): Promise<boolean> {
+		const requestId = ++cameraRequestId;
+		stopStream();
+
 		try {
-			stream = await navigator.mediaDevices.getUserMedia({
-				video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+			const nextStream = await navigator.mediaDevices.getUserMedia({
+				video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } }
 			});
+
+			if (requestId !== cameraRequestId) {
+				nextStream.getTracks().forEach((track) => track.stop());
+				return false;
+			}
+
+			stream = nextStream;
+			facingMode = mode;
 			showCamera = true;
-			
+
 			setTimeout(() => {
+				if (requestId !== cameraRequestId) return;
 				if (videoElement) {
-					videoElement.srcObject = stream;
+					videoElement.srcObject = nextStream;
 					videoElement.play();
 				}
 			}, 0);
+
+			return true;
 		} catch (error) {
-			console.error('Failed to access camera:', error);
-			toast.error(m.camera_access_denied());
+			console.error(`Failed to access ${mode} camera:`, error);
+			if (requestId === cameraRequestId && notifyOnError) {
+				toast.error(m.camera_access_denied());
+			}
+			return false;
 		}
 	}
-	
-	function closeCamera() {
-		if (stream) {
-			stream.getTracks().forEach(track => track.stop());
-			stream = null;
+
+	async function openCamera() {
+		await startCamera(facingMode);
+	}
+
+	async function switchCamera() {
+		if (switchingCamera) return;
+
+		const previousMode = facingMode;
+		const nextMode: CameraFacingMode = previousMode === 'user' ? 'environment' : 'user';
+		switchingCamera = true;
+
+		try {
+			const switched = await startCamera(nextMode, false);
+			if (!showCamera || switched) return;
+
+			const restored = await startCamera(previousMode, false);
+			if (!showCamera) return;
+
+			if (restored) {
+				toast.error(m.camera_switch_failed());
+			} else {
+				closeCamera();
+				toast.error(m.camera_access_denied());
+			}
+		} finally {
+			switchingCamera = false;
 		}
+	}
+
+	function closeCamera() {
+		cameraRequestId += 1;
+		stopStream();
 		showCamera = false;
 	}
 	
@@ -136,7 +190,6 @@
 	// --- end photo handling ---
 
 	const initialValues: z.infer<NewMemberTypeSchema> = {
-		card_id: '',
 		first_name: '',
 		last_name: '',
 		email: '',
@@ -207,26 +260,6 @@
 
 	async function handleCancel() {
 		await goto('/members');
-	}
-
-	async function checkExistingMember(cardId: string) {
-		const trimmed = cardId.trim();
-		if (!trimmed || trimmed === existingMember?.card_id) return;
-
-		checkingMember = true;
-		existingMember = null;
-		try {
-			const result = await invoke<Member | null>('get_member_by_card_id', { card_id: trimmed });
-			existingMember = result ?? null;
-			if (existingMember) {
-				toast.info(m.error_card_already_exists({ cardId: trimmed }));
-			}
-		} catch (e) {
-			console.error('Error checking existing member:', e);
-			existingMember = null;
-		} finally {
-			checkingMember = false;
-		}
 	}
 
 	async function handleCancelPrompt() {
@@ -369,45 +402,6 @@
 					</Form.Control>
 				</Form.Field>
 
-				<Form.Field {form} name="card_id">
-					<Form.Control>
-						{#snippet children({ props })}
-							<Form.Label class="font-semibold">{m.card_number()}</Form.Label>
-							<Input
-								{...props}
-								type="text"
-								bind:value={$formData.card_id}
-								onkeydown={(e) => {
-									if (e.key === 'Enter') {
-										e.preventDefault();
-									}
-								}}
-								onblur={(e) => {
-									const target = e.target as HTMLInputElement;
-									checkExistingMember(target.value);
-								}}
-							/>
-							<Form.Description class="text-xs">{m.use_scanner_or_enter()}</Form.Description>
-							<Form.FieldErrors />
-							{#if existingMember}
-								<div class="p-3 bg-yellow-50 border border-yellow-200 rounded text-yellow-800 text-sm">
-									{m.error_card_already_exists({ cardId: existingMember.card_id ?? '' })}{' '}
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										onclick={() => goto(`/members/${existingMember!.id}`)}
-									>
-										{m.view_existing_member()}
-									</Button>
-								</div>
-							{:else if checkingMember}
-								<div class="text-xs text-muted-foreground">{m.checking_existing_member()}</div>
-							{/if}
-						{/snippet}
-					</Form.Control>
-				</Form.Field>
-
 				<div class="flex gap-20 justify-around w-full">
 					<Button variant="outline" onclick={handleCancel} class="flex-1"
 						>{m['common.cancel']()}</Button
@@ -429,6 +423,7 @@
 							{newMember.last_name}</b
 						>
 						{m.membership_prompt_desc()}
+						<p class="mt-2 font-mono text-sm">ID: {newMember.card_id ?? ''}</p>
 					</AlertDialog.Description>
 				</AlertDialog.Header>
 				<AlertDialog.Footer>
@@ -448,13 +443,27 @@
 {#if showCamera}
 	<div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
 		<div class="bg-background p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4">
-			<h2 class="text-lg font-semibold mb-4">{m.capture_photo()}</h2>
+			<div class="mb-4 flex items-center justify-between gap-3">
+				<h2 class="text-lg font-semibold">{m.capture_photo()}</h2>
+				<button
+					type="button"
+					class="inline-flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+					onclick={switchCamera}
+					disabled={switchingCamera}
+					aria-label={m.switch_camera()}
+					title={m.switch_camera()}
+				>
+					<SwitchCamera class="h-4 w-4" />
+					<span class="hidden sm:inline">{m.switch_camera()}</span>
+				</button>
+			</div>
 			<video bind:this={videoElement} class="w-full rounded-lg bg-black" autoplay muted playsinline></video>
 			<div class="flex justify-center gap-4 mt-4">
 				<button 
 					type="button" 
-					class="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+					class="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
 					onclick={capturePhoto}
+					disabled={switchingCamera}
 				>
 					{m.capture()}
 				</button>

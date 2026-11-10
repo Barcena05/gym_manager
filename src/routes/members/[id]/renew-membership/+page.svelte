@@ -42,7 +42,7 @@
 	let selectedMembershipType: MembershipType | null = $state(null);
 	let membership_status: string | null = $state(null);
 	let membershipData = $state<MembershipInfo | null>(null);
-	let renewType: 'end' | 'now' = $state('end');
+	let renewType: 'end' | 'now' | 'custom' = $state('end');
 	let endRenewDisabled = $state(false);
 	
 	// 👇 Tipo de cambio actual
@@ -95,20 +95,26 @@
 	}
 	$effect(() => {
 		const currentRenewType = renewType;
+		const durationDays = selectedMembershipType?.duration_days || 0;
+		let start = today(getLocalTimeZone());
 
 		if (currentRenewType === 'end') {
-			if (membershipData?.membership_end_date) {
-				const newStartDate = parseDate(membershipData.membership_end_date).add({ days: 1 });
-				$formData.membership_start_date = newStartDate.toString();
-				$formData.membership_end_date = newStartDate
-					.add({ days: selectedMembershipType?.duration_days || 0 })
-					.toString();
-			}
-		} else {
-			$formData.membership_start_date = today(getLocalTimeZone()).toString();
-			$formData.membership_end_date = today(getLocalTimeZone())
-				.add({ days: selectedMembershipType?.duration_days || 0 })
-				.toString();
+			start = membershipData?.membership_end_date
+				? parseDate(membershipData.membership_end_date).add({ days: 1 })
+				: today(getLocalTimeZone());
+		} else if (currentRenewType === 'now') {
+			start = today(getLocalTimeZone());
+		} else if ($formData.membership_start_date) {
+			start = parseDate($formData.membership_start_date);
+		}
+
+		const newStart = start.toString();
+		const newEnd = start.add({ days: durationDays }).toString();
+		if ($formData.membership_start_date !== newStart) {
+			$formData.membership_start_date = newStart;
+		}
+		if ($formData.membership_end_date !== newEnd) {
+			$formData.membership_end_date = newEnd;
 		}
 	});
 
@@ -181,14 +187,25 @@
 		day: '2-digit'
 	});
 
+	let start_date = $state<DateValue | undefined>();
 	let end_date = $state<DateValue | undefined>();
+
+	$effect(() => {
+		start_date = $formData.membership_start_date
+			? parseDate($formData.membership_start_date)
+			: undefined;
+	});
 
 	$effect(() => {
 		end_date = $formData.membership_end_date ? parseDate($formData.membership_end_date) : undefined;
 	});
 
-	function onChangeEndDate(newValue: DateValue | undefined) {
-		$formData.membership_end_date = newValue ? newValue.toString() : null;
+	function onChangeStartDate(newValue: DateValue | undefined) {
+		$formData.membership_start_date = newValue ? newValue.toString() : null;
+		if (newValue) {
+			const durationDays = selectedMembershipType?.duration_days || 0;
+			$formData.membership_end_date = newValue.add({ days: durationDays }).toString();
+		}
 	}
 
 	function onMembershipTypeChange(id: number) {
@@ -393,6 +410,15 @@
 						</div>
 					</div>
 
+					<div class="w-full space-y-2">
+						<Label class="font-semibold">{m.daily_visit_limit()}</Label>
+						<Input
+							type="text"
+							readonly
+							value={selectedMembershipType?.daily_visit_limit ?? 0}
+						/>
+					</div>
+
 					<!-- 👇 Precio: USD y CUP (solo lectura) -->
 					<div class="w-full space-y-2 pb-2">
 						<Label class="font-semibold">{m.price()}</Label>
@@ -421,18 +447,22 @@
 						</div>
 					</div>
 
-					<RadioGroup.Root bind:value={renewType} class="flex justify-evenly" name="type">
+					<RadioGroup.Root
+						bind:value={renewType}
+						class="flex flex-col gap-3 md:flex-row md:justify-evenly"
+						name="type"
+					>
 						<div class="flex items-center space-x-3 space-y-0">
 							<RadioGroup.Item value="end" disabled={endRenewDisabled} />
 							<Label class="font-normal">{m.from_end_date()}</Label>
 						</div>
 						<div class="flex items-center space-x-3 space-y-0">
-							<RadioGroup.Item
-								value="now"
-								disabled={membershipData?.membership_status === 'active' ||
-									membershipData?.membership_status === 'suspended'}
-							/>
+							<RadioGroup.Item value="now" />
 							<Label class="font-normal">{m.from_now()}</Label>
+						</div>
+						<div class="flex items-center space-x-3 space-y-0">
+							<RadioGroup.Item value="custom" />
+							<Label class="font-normal">{m.from_specific_date()}</Label>
 						</div>
 					</RadioGroup.Root>
 					<div class="flex flex-col md:flex-row gap-4 w-full justify-between pt-2">
@@ -440,11 +470,23 @@
 							<Form.Control>
 								{#snippet children({ props })}
 									<Form.Label class="font-semibold">{m.start_date()}</Form.Label>
-									<Input
-										type="text"
-										readonly
-										value={df2.format(new Date($formData?.membership_start_date || new Date()))}
-									/>
+									{#if renewType === 'custom'}
+										<DateField
+											{...props}
+											value={start_date}
+											onValueChange={onChangeStartDate}
+											{locale}
+											height="h-9 py-1.5"
+										/>
+									{:else}
+										<Input
+											type="text"
+											readonly
+											value={$formData.membership_start_date
+												? df2.format(new Date($formData.membership_start_date))
+												: ''}
+										/>
+									{/if}
 									<Form.FieldErrors />
 								{/snippet}
 							</Form.Control>
@@ -456,8 +498,8 @@
 									<Form.Label class="font-semibold">{m.end_date()}</Form.Label>
 									<DateField
 										{...props}
+										disabled
 										value={end_date}
-										onValueChange={onChangeEndDate}
 										minValue={$formData.membership_start_date
 											? parseDate($formData.membership_start_date).add({
 													days: selectedMembershipType?.duration_days || 0
@@ -491,7 +533,6 @@
 										{...props}
 										type="number"
 										min={0}
-										max={selectedMembershipType?.duration_days}
 										bind:value={$formData.membership_remaining_visits}
 									/>
 									<Form.FieldErrors />

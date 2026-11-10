@@ -21,7 +21,8 @@
 	import { translateAccessStatus } from '$lib/utils';
 
 	let cardIdInput = $state('');
-	let inputElement: any | null = $state(null); // For focusing
+	let membershipInput = $state<HTMLInputElement | null>(null);
+	let singleInput = $state<HTMLInputElement | null>(null);
 	let isProcessingScan = $state(false);
 	let scannerEnabled = $state(true); // Toggle para entrada global de teclado (escáner)
 	let lastKeyTime = $state(0); // Para detectar entrada rápida de escáner
@@ -35,12 +36,55 @@
 	let recentEntries = $state<EntryLog[]>([]);
 	let isLoadingEntries = $state(true);
 	let activeTab = $state('membership');
+	const scannerInput = $derived(activeTab === 'single' ? singleInput : membershipInput);
+	const interactiveSelector =
+		'input, textarea, select, button, a, [contenteditable="true"], [role="button"], [role="tab"], [data-scanner-focus-ignore]';
     let scannerButtonTitle = $derived(
         scannerEnabled ? m['scanner.scanner_disable']() : m['scanner.scanner_enable']()
     );
 
+	async function focusScannerInput() {
+		if (!scannerEnabled) return;
+		await tick();
+		scannerInput?.focus();
+	}
+
+	function handleWindowFocus() {
+		void focusScannerInput();
+	}
+
+	function handleVisibilityChange() {
+		if (!document.hidden) {
+			void focusScannerInput();
+		}
+	}
+
+	function handleBackgroundClick(event: MouseEvent) {
+		if (!scannerEnabled) return;
+		const target = event.target as Element | null;
+		if (target?.closest(interactiveSelector)) return;
+		void focusScannerInput();
+	}
+
 	// Buffer para acumular caracteres de escáner (NETUM envía rápido + Enter al final)
 	let scanBuffer = '';
+
+	async function toggleScanner(event?: MouseEvent) {
+		scannerEnabled = !scannerEnabled;
+		scanBuffer = '';
+		lastKeyTime = 0;
+
+		// Quita el foco del botón para que el Enter del lector no lo vuelva a pulsar.
+		(event?.currentTarget as HTMLElement | null)?.blur();
+
+		if (!scannerEnabled) {
+			cardIdInput = '';
+			scannerInput?.blur();
+		} else {
+			await tick();
+			await focusScannerInput();
+		}
+	}
 
 	async function fetchRecentEntries() {
 		isLoadingEntries = true;
@@ -60,7 +104,7 @@
 			return;
 		}
 		isProcessingScan = true;
-		scanResult = null;
+		if (!showStatusDialog) scanResult = null;
 
 		try {
 			const result = await invoke<ScanProcessingResult>('process_scan', {
@@ -77,6 +121,7 @@
 				status: 'Error',
 				message: m['scanner.error_unknown'](),
 				member_name: null,
+				photo_path: null,
 				card_id: cardIdInput.trim(),
 				membership_type_name: null,
 				membership_end_date: null,
@@ -86,8 +131,7 @@
 		} finally {
 			isProcessingScan = false;
 			cardIdInput = '';
-			await tick();
-			inputElement?.focus();
+			await focusScannerInput();
 		}
 	}
 
@@ -98,7 +142,7 @@
 		}
 
 		isProcessingScan = true;
-		scanResult = null;
+		if (!showStatusDialog) scanResult = null;
 
 		try {
 			const result = await invoke<ScanProcessingResult>('process_scan_single', {
@@ -119,6 +163,7 @@
 				status: 'Error',
 				message: m['scanner.error_unknown'](),
 				member_name: null,
+				photo_path: null,
 				card_id: cardIdInput.trim(),
 				membership_type_name: null,
 				membership_end_date: null,
@@ -128,8 +173,7 @@
 		} finally {
 			isProcessingScan = false;
 			cardIdInput = '';
-			await tick();
-			inputElement?.focus();
+			await focusScannerInput();
 		}
 	}
 
@@ -140,7 +184,7 @@
 		// Ignorar si el usuario está escribiendo en un input (excepto el del scanner)
 		const activeEl = document.activeElement as HTMLElement | null;
 		const isInput = activeEl?.tagName === 'INPUT' || activeEl?.tagName === 'TEXTAREA' || activeEl?.isContentEditable;
-		if (isInput && activeEl !== inputElement) return;
+		if (isInput && activeEl !== scannerInput) return;
 
 		// Detectar Enter (sufijo que envía el escáner NETUM al final de cada código)
 		if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.altKey) {
@@ -163,10 +207,9 @@
 			}
 
 			isProcessingScan = true;
-			scanResult = null;
+			if (!showStatusDialog) scanResult = null;
 
-			// Temporalmente establecer el input para que process_scan lo use
-			const prevValue = cardIdInput;
+			// Usar el código leído; al terminar el input siempre queda limpio.
 			cardIdInput = codeToScan;
 
 			try {
@@ -184,6 +227,7 @@
 					status: 'Error',
 					message: m['scanner.error_unknown'](),
 					member_name: null,
+					photo_path: null,
 					card_id: codeToScan,
 					membership_type_name: null,
 					membership_end_date: null,
@@ -192,9 +236,8 @@
 				showStatusDialog = true;
 			} finally {
 				isProcessingScan = false;
-				cardIdInput = prevValue;
-				await tick();
-				inputElement?.focus();
+				cardIdInput = '';
+				await focusScannerInput();
 			}
 			return;
 		}
@@ -217,7 +260,7 @@
 				cardIdInput += event.key;
 			}
 
-			inputElement?.focus();
+			scannerInput?.focus();
 		}
 	};
 
@@ -227,17 +270,53 @@
 			showBackButton: false
 		});
 
-		fetchRecentEntries();
-		inputElement?.focus();
+		void fetchRecentEntries();
+		void focusScannerInput();
 
 		window.addEventListener('keydown', handleGlobalKeyDown);
-		return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+		window.addEventListener('focus', handleWindowFocus);
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+		window.addEventListener('click', handleBackgroundClick);
+		return () => {
+			window.removeEventListener('keydown', handleGlobalKeyDown);
+			window.removeEventListener('focus', handleWindowFocus);
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+			window.removeEventListener('click', handleBackgroundClick);
+		};
 	});
 
 	$effect(() => {
-		if (!showStatusDialog && inputElement) {
-			setTimeout(() => inputElement?.focus(), 100);
+		const input = scannerInput;
+		const dialogOpen = showStatusDialog;
+
+		if (scannerEnabled && input) {
+			const delay = dialogOpen ? 300 : 250;
+			const timeout = setTimeout(() => {
+				if (scannerEnabled && !isProcessingScan) {
+					input.focus();
+				}
+			}, delay);
+			return () => clearTimeout(timeout);
 		}
+
+		if (!scannerEnabled) {
+			input?.blur();
+		}
+	});
+
+	// El popup no debe bloquear el escáner: mientras está visible reafirmamos
+	// el foco del input para permitir lecturas consecutivas sin intervención.
+	$effect(() => {
+		if (!scannerEnabled || !showStatusDialog) return;
+
+		const interval = setInterval(() => {
+			if (!scannerEnabled || isProcessingScan) return;
+			if (document.activeElement !== scannerInput) {
+				scannerInput?.focus();
+			}
+		}, 200);
+
+		return () => clearInterval(interval);
 	});
 	const locale = $derived(m.locale_code() || 'bs-BA');
 
@@ -273,18 +352,18 @@
 						<Label class="text-lg font-semibold mb-2">{m['scanner.scan_card_title']()}</Label>
 						<div class="flex items-center gap-3 w-full max-w-md">
 							<Input
-								bind:ref={inputElement}
+								bind:ref={membershipInput}
 								bind:value={cardIdInput}
 								type="text"
 								class="h-14 text-2xl! grow text-center"
-								disabled={isProcessingScan}
+								disabled={isProcessingScan || !scannerEnabled}
 								aria-label={m['scanner.scan_card_title']()}
 							/>
 							<Button
 								type="button"
 								variant={scannerEnabled ? 'default' : 'outline'}
 								size="icon"
-								onclick={() => (scannerEnabled = !scannerEnabled)}
+								onclick={toggleScanner}
 								title={scannerButtonTitle}
 							>
 								{#if scannerEnabled}
@@ -318,11 +397,11 @@
 					<form onsubmit={handleSingleEntry} class="flex flex-col items-center gap-4">
 						<Label class="text-lg font-semibold mb-2">{m['scanner.scan_card_title']()}</Label>
 						<Input
-							bind:ref={inputElement}
+							bind:ref={singleInput}
 							bind:value={cardIdInput}
 							type="text"
 							class="h-14 text-2xl! grow text-center"
-							disabled={isProcessingScan}
+							disabled={isProcessingScan || !scannerEnabled}
 							aria-label={m['scanner.scan_card_title']()}
 						/>
 						<h1>Ili</h1>
@@ -417,4 +496,4 @@
 	</Card.Root>
 </div>
 
-<EntryStatusDialog bind:open={showStatusDialog} autoCloseDelay={15000} result={scanResult} />
+<EntryStatusDialog bind:open={showStatusDialog} autoCloseDelay={5000} result={scanResult} />

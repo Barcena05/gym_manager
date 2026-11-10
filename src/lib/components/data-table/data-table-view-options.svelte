@@ -30,7 +30,7 @@
 					bind:checked={() => column.getIsVisible(), (v) => column.toggleVisibility(!!v)}
 					class="capitalize"
 				>
-					{column.id}
+					{(column.columnDef.meta as { label?: string } | undefined)?.label ?? column.id}
 				</DropdownMenu.CheckboxItem>
 			{/each}
 		</DropdownMenu.Group>
